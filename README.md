@@ -73,22 +73,6 @@ PYTHONPATH=.build/dictionary-tools ./scripts/generate-lexicons.py \
 
 Локальная сборка подписывается ad-hoc и предназначена для разработки. Для распространения другим пользователям нужна подпись Developer ID и notarization Apple.
 
-## Публичный релиз через GitHub
-
-Workflow `.github/workflows/release.yml` запускается тегом вида `v0.1.0`, собирает Universal Binary, подписывает приложение, создаёт DMG, отправляет её на notarization и публикует в GitHub Releases.
-
-В репозитории необходимо настроить GitHub Actions secrets:
-
-- `MACOS_CERTIFICATE_BASE64` — Developer ID Application certificate в формате `.p12`, закодированный base64;
-- `MACOS_CERTIFICATE_PASSWORD` — пароль `.p12`;
-- `MACOS_KEYCHAIN_PASSWORD` — временный пароль CI keychain;
-- `DEVELOPER_ID_APPLICATION` — полное имя сертификата, например `Developer ID Application: ...`;
-- `APPLE_ID`;
-- `APPLE_APP_PASSWORD` — app-specific password;
-- `APPLE_TEAM_ID`.
-
-После подписанного и нотарифицированного релиза пользователь сможет скачать DMG, перетащить Shoev Switcher в Applications и запустить его обычным способом.
-
 ## Документация
 
 - [Архитектура](docs/ARCHITECTURE.md)
@@ -96,4 +80,3 @@ Workflow `.github/workflows/release.yml` запускается тегом ви�
 - [Участие в разработке](CONTRIBUTING.md)
 - [Лицензии словарных данных](THIRD_PARTY_NOTICES.md)
 
-Перед публикацией репозитория нужно выбрать лицензию. Она намеренно пока не добавлена, чтобы не принимать юридическое решение за владельца проекта.
