@@ -1,0 +1,18 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: swift test
+      - name: Build universal application
+        run: ./scripts/build-app.sh
+      - name: Verify architectures
+        run: lipo -info "dist/Shoev Switcher.app/Contents/MacOS/ShoevSwitcher"
