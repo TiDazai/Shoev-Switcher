@@ -12,10 +12,12 @@ final class InputEngine: KeyboardMonitorDelegate {
     private let journalStore: JournalStore?
     private let injector: EventInjector
     private let defaults: UserDefaults
+    private let sensitiveInputGuard = SensitiveInputGuard()
 
     private var current = TypedToken()
     private var lastCompleted: CompletedToken?
     private var recentLanguages: [InputLanguage] = []
+    private var recentTokens: [ContextToken] = []
     private var activeProcessIdentifier: pid_t?
     private var rightShiftWasDown = false
     private var lastRightShiftRelease: Date?
@@ -42,6 +44,7 @@ final class InputEngine: KeyboardMonitorDelegate {
     }
 
     func keyboardMonitorDidResetInput(_ monitor: KeyboardMonitor) {
+        sensitiveInputGuard.reset()
         resetAll()
     }
 
@@ -58,6 +61,7 @@ final class InputEngine: KeyboardMonitorDelegate {
 
         let application = NSWorkspace.shared.frontmostApplication
         if activeProcessIdentifier != application?.processIdentifier {
+            sensitiveInputGuard.reset()
             resetAll()
             activeProcessIdentifier = application?.processIdentifier
         }
@@ -65,14 +69,21 @@ final class InputEngine: KeyboardMonitorDelegate {
             resetAll()
             return false
         }
+        guard !sensitiveInputGuard.isSensitive(processIdentifier: application?.processIdentifier) else {
+            resetAll()
+            return false
+        }
 
         let flags = event.flags
         if flags.contains(.maskCommand) || flags.contains(.maskControl) || flags.contains(.maskAlternate) {
-            current.clear()
+            resetAll()
             return false
         }
 
         if keyCode == 51 {
+            if current.isEmpty, undoLastAutomaticCorrection(application: application) {
+                return true
+            }
             current.removeLast()
             return false
         }
@@ -89,8 +100,20 @@ final class InputEngine: KeyboardMonitorDelegate {
             visibleText: text,
             shouldUppercase: shiftPressed != capsLockEnabled
         )
-        if isWordText(text) || sourceManager.isPotentialWordStroke(stroke) {
-            current.append(stroke)
+        if isLetterText(text) || (isWordJoiner(text) && !current.isEmpty) {
+            append(stroke)
+            return false
+        }
+
+        if sourceManager.isPotentialWordStroke(stroke) {
+            if shouldUsePotentialLetterAsTerminator(text) {
+                return completeCurrentToken(
+                    terminator: text,
+                    trailingEvent: event,
+                    application: application
+                )
+            }
+            append(stroke)
             return false
         }
 
@@ -145,7 +168,10 @@ final class InputEngine: KeyboardMonitorDelegate {
                 alternative: alternative,
                 sourceLanguage: sourceLanguage,
                 applicationBundleIdentifier: application?.bundleIdentifier,
-                context: DetectionContext(recentLanguages: recentLanguages)
+                context: DetectionContext(
+                    recentLanguages: recentLanguages,
+                    recentTokens: recentTokens
+                )
             )
             : DetectionEvaluation(decision: .keep, likelyLanguage: sourceLanguage)
 
@@ -161,10 +187,12 @@ final class InputEngine: KeyboardMonitorDelegate {
                 alternativeLanguage: targetLanguage,
                 terminator: terminator,
                 processIdentifier: pid,
-                completedAt: Date()
+                completedAt: Date(),
+                correctionKind: nil
             )
             logTypedIfNeeded(original, language: sourceLanguage, application: application)
-            recordLanguage(evaluation.likelyLanguage, terminator: terminator)
+            let contextText = evaluation.likelyLanguage == sourceLanguage ? original : alternative
+            recordToken(contextText, language: evaluation.likelyLanguage, terminator: terminator)
             current.clear()
             return false
 
@@ -185,7 +213,8 @@ final class InputEngine: KeyboardMonitorDelegate {
                 alternativeLanguage: candidate.sourceLanguage,
                 terminator: terminator,
                 processIdentifier: pid,
-                completedAt: Date()
+                completedAt: Date(),
+                correctionKind: .correction
             )
             log(
                 kind: .correction,
@@ -195,7 +224,7 @@ final class InputEngine: KeyboardMonitorDelegate {
                 targetLanguage: candidate.targetLanguage,
                 application: application
             )
-            recordLanguage(candidate.targetLanguage, terminator: terminator)
+            recordToken(candidate.replacement, language: candidate.targetLanguage, terminator: terminator)
             current.clear()
             return true
         }
@@ -220,7 +249,8 @@ final class InputEngine: KeyboardMonitorDelegate {
                 alternativeLanguage: sourceLanguage,
                 terminator: "",
                 processIdentifier: pid,
-                completedAt: Date()
+                completedAt: Date(),
+                correctionKind: .manualCorrection
             )
             log(
                 kind: .manualCorrection,
@@ -230,6 +260,8 @@ final class InputEngine: KeyboardMonitorDelegate {
                 targetLanguage: targetLanguage,
                 application: application
             )
+            recordManualLearning(candidateOriginal: original, replacement: alternative, sourceLanguage: sourceLanguage, targetLanguage: targetLanguage)
+            recordToken(alternative, language: targetLanguage, terminator: "")
             current.clear()
             return
         }
@@ -237,6 +269,10 @@ final class InputEngine: KeyboardMonitorDelegate {
         guard let completed = lastCompleted,
               completed.processIdentifier == pid,
               Date().timeIntervalSince(completed.completedAt) <= 8 else { return }
+        if completed.correctionKind == .correction {
+            _ = undoLastAutomaticCorrection(application: application)
+            return
+        }
         sourceManager.select(completed.alternativeLanguage)
         injector.replace(
             deleteCount: completed.displayedText.count + completed.terminator.count,
@@ -250,6 +286,21 @@ final class InputEngine: KeyboardMonitorDelegate {
             targetLanguage: completed.alternativeLanguage,
             application: application
         )
+        if completed.correctionKind == nil {
+            recordManualLearning(
+                candidateOriginal: completed.displayedText,
+                replacement: completed.alternativeText,
+                sourceLanguage: completed.displayedLanguage,
+                targetLanguage: completed.alternativeLanguage
+            )
+        }
+        if !recentLanguages.isEmpty { recentLanguages.removeLast() }
+        if !recentTokens.isEmpty { recentTokens.removeLast() }
+        recordToken(
+            completed.alternativeText,
+            language: completed.alternativeLanguage,
+            terminator: completed.terminator
+        )
         lastCompleted = CompletedToken(
             displayedText: completed.alternativeText,
             alternativeText: completed.displayedText,
@@ -257,14 +308,83 @@ final class InputEngine: KeyboardMonitorDelegate {
             alternativeLanguage: completed.displayedLanguage,
             terminator: completed.terminator,
             processIdentifier: pid,
-            completedAt: Date()
+            completedAt: Date(),
+            correctionKind: .manualCorrection
         )
     }
 
-    private func isWordText(_ text: String) -> Bool {
-        text.unicodeScalars.allSatisfy { scalar in
-            CharacterSet.letters.contains(scalar) || scalar == "'" || scalar == "-"
+    private func undoLastAutomaticCorrection(application: NSRunningApplication?) -> Bool {
+        let pid = application?.processIdentifier ?? 0
+        guard let completed = lastCompleted,
+              completed.correctionKind == .correction,
+              completed.processIdentifier == pid,
+              Date().timeIntervalSince(completed.completedAt) <= 5 else { return false }
+
+        sourceManager.select(completed.alternativeLanguage)
+        injector.replace(
+            deleteCount: completed.displayedText.count + completed.terminator.count,
+            with: completed.alternativeText + completed.terminator
+        )
+        log(
+            kind: .undone,
+            original: completed.displayedText,
+            replacement: completed.alternativeText,
+            sourceLanguage: completed.displayedLanguage,
+            targetLanguage: completed.alternativeLanguage,
+            application: application
+        )
+        journalStore?.addRule(
+            kind: .keep,
+            pattern: completed.alternativeText,
+            language: completed.alternativeLanguage
+        ) { [weak self] in
+            self?.reloadRules()
         }
+        lastCompleted = nil
+        if !recentLanguages.isEmpty { recentLanguages.removeLast() }
+        if !recentTokens.isEmpty { recentTokens.removeLast() }
+        recordToken(
+            completed.alternativeText,
+            language: completed.alternativeLanguage,
+            terminator: completed.terminator
+        )
+        return true
+    }
+
+    private func recordManualLearning(
+        candidateOriginal: String,
+        replacement: String,
+        sourceLanguage: InputLanguage,
+        targetLanguage: InputLanguage
+    ) {
+        journalStore?.recordManualConversion(
+            original: candidateOriginal,
+            replacement: replacement,
+            sourceLanguage: sourceLanguage,
+            targetLanguage: targetLanguage
+        ) { [weak self] learned in
+            if learned { self?.reloadRules() }
+        }
+    }
+
+    private func isLetterText(_ text: String) -> Bool {
+        !text.isEmpty && text.unicodeScalars.allSatisfy(CharacterSet.letters.contains)
+    }
+
+    private func append(_ stroke: KeyStroke) {
+        if current.isEmpty { lastCompleted = nil }
+        current.append(stroke)
+    }
+
+    private func isWordJoiner(_ text: String) -> Bool {
+        text == "'" || text == "’" || text == "-"
+    }
+
+    private func shouldUsePotentialLetterAsTerminator(_ text: String) -> Bool {
+        guard !current.isEmpty,
+              punctuationCharacters.contains(text),
+              let language = sourceManager.currentLanguage() else { return false }
+        return detector.isKnown(current.visibleText, language: language)
     }
 
     private func isExcluded(_ application: NSRunningApplication?) -> Bool {
@@ -315,19 +435,26 @@ final class InputEngine: KeyboardMonitorDelegate {
         current.clear()
         lastCompleted = nil
         recentLanguages.removeAll(keepingCapacity: true)
+        recentTokens.removeAll(keepingCapacity: true)
     }
 
-    private func recordLanguage(_ language: InputLanguage, terminator: String) {
+    private func recordToken(_ text: String, language: InputLanguage, terminator: String) {
         recentLanguages.append(language)
+        recentTokens.append(ContextToken(text: text, language: language))
         if recentLanguages.count > 5 {
             recentLanguages.removeFirst(recentLanguages.count - 5)
+        }
+        if recentTokens.count > 5 {
+            recentTokens.removeFirst(recentTokens.count - 5)
         }
 
         let sentenceTerminators = CharacterSet(charactersIn: ".!?\n\r")
         if terminator.unicodeScalars.contains(where: sentenceTerminators.contains) {
             recentLanguages.removeAll(keepingCapacity: true)
+            recentTokens.removeAll(keepingCapacity: true)
         }
     }
 
     private let navigationKeyCodes: Set<CGKeyCode> = [53, 115, 116, 117, 119, 121, 123, 124, 125, 126]
+    private let punctuationCharacters: Set<String> = [".", ",", ";", ":", "!", "?", "[", "]", "{", "}", "(", ")"]
 }

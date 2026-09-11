@@ -91,6 +91,74 @@ final class JournalStore {
         }
     }
 
+    func rules(completion: @escaping ([UserRule]) -> Void) {
+        queue.async { [weak self] in
+            let rules = (try? self?.readRules()) ?? []
+            DispatchQueue.main.async { completion(rules) }
+        }
+    }
+
+    func updateRule(_ rule: UserRule, completion: (() -> Void)? = nil) {
+        queue.async { [weak self] in
+            try? self?.replaceRule(rule)
+            DispatchQueue.main.async { completion?() }
+        }
+    }
+
+    func deleteRule(id: Int64, completion: (() -> Void)? = nil) {
+        queue.async { [weak self] in
+            try? self?.deleteRow(table: "user_rules", id: id)
+            DispatchQueue.main.async { completion?() }
+        }
+    }
+
+    func importRules(_ rules: [UserRule], completion: ((Int) -> Void)? = nil) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            var imported = 0
+            for rule in rules where !rule.pattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                guard (try? self.containsEquivalentRule(rule)) == false else { continue }
+                if (try? self.insertRule(
+                    kind: rule.kind,
+                    pattern: rule.pattern,
+                    replacement: rule.replacement,
+                    language: rule.language,
+                    applicationBundleIdentifier: rule.applicationBundleIdentifier
+                )) != nil {
+                    imported += 1
+                }
+            }
+            DispatchQueue.main.async { completion?(imported) }
+        }
+    }
+
+    func deleteJournalEntry(id: Int64, completion: (() -> Void)? = nil) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.flushPending()
+            try? self.deleteRow(table: "journal_entries", id: id)
+            DispatchQueue.main.async { completion?() }
+        }
+    }
+
+    func recordManualConversion(
+        original: String,
+        replacement: String,
+        sourceLanguage: InputLanguage,
+        targetLanguage: InputLanguage,
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        queue.async { [weak self] in
+            let learned = (try? self?.recordLearningObservation(
+                original: original,
+                replacement: replacement,
+                sourceLanguage: sourceLanguage,
+                targetLanguage: targetLanguage
+            )) ?? false
+            DispatchQueue.main.async { completion?(learned) }
+        }
+    }
+
     func deleteAllJournalEntries(completion: (() -> Void)? = nil) {
         queue.async { [weak self] in
             guard let self else { return }
@@ -136,6 +204,17 @@ final class JournalStore {
             );
             """)
         try execute("CREATE INDEX IF NOT EXISTS journal_created_at ON journal_entries(created_at DESC);")
+        try execute("""
+            CREATE TABLE IF NOT EXISTS learning_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                original BLOB NOT NULL,
+                replacement BLOB NOT NULL,
+                source_language TEXT NOT NULL,
+                target_language TEXT NOT NULL,
+                correction_count INTEGER NOT NULL,
+                updated_at REAL NOT NULL
+            );
+            """)
     }
 
     private func flushPending() {
@@ -231,6 +310,128 @@ final class JournalStore {
         bind(applicationBundleIdentifier, to: statement, index: 5)
         sqlite3_bind_double(statement, 6, Date().timeIntervalSince1970)
         try step(statement)
+    }
+
+    private func replaceRule(_ rule: UserRule) throws {
+        let statement = try prepare("""
+            UPDATE user_rules
+            SET kind = ?, pattern = ?, replacement = ?, language = ?, app_bundle = ?
+            WHERE id = ?;
+            """)
+        defer { sqlite3_finalize(statement) }
+        bind(rule.kind.rawValue, to: statement, index: 1)
+        bind(try cipher.encrypt(rule.pattern), to: statement, index: 2)
+        if let replacement = rule.replacement {
+            bind(try cipher.encrypt(replacement), to: statement, index: 3)
+        } else {
+            sqlite3_bind_null(statement, 3)
+        }
+        bind(rule.language?.rawValue, to: statement, index: 4)
+        bind(rule.applicationBundleIdentifier, to: statement, index: 5)
+        sqlite3_bind_int64(statement, 6, rule.id)
+        try step(statement)
+    }
+
+    private func deleteRow(table: String, id: Int64) throws {
+        guard table == "user_rules" || table == "journal_entries" || table == "learning_stats" else {
+            return
+        }
+        let statement = try prepare("DELETE FROM \(table) WHERE id = ?;")
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_int64(statement, 1, id)
+        try step(statement)
+    }
+
+    private func containsEquivalentRule(_ candidate: UserRule) throws -> Bool {
+        try readRules().contains { rule in
+            rule.kind == candidate.kind
+                && normalize(rule.pattern) == normalize(candidate.pattern)
+                && rule.replacement.map(normalize) == candidate.replacement.map(normalize)
+                && rule.language == candidate.language
+                && rule.applicationBundleIdentifier == candidate.applicationBundleIdentifier
+        }
+    }
+
+    private func recordLearningObservation(
+        original: String,
+        replacement: String,
+        sourceLanguage: InputLanguage,
+        targetLanguage: InputLanguage
+    ) throws -> Bool {
+        let candidate = UserRule(
+            id: 0,
+            kind: .convert,
+            pattern: original,
+            replacement: replacement,
+            language: sourceLanguage,
+            applicationBundleIdentifier: nil,
+            createdAt: Date()
+        )
+        if try containsEquivalentRule(candidate) { return false }
+
+        let statement = try prepare("""
+            SELECT id, original, replacement, source_language, target_language, correction_count
+            FROM learning_stats;
+            """)
+        defer { sqlite3_finalize(statement) }
+
+        var matchingID: Int64?
+        var count = 0
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let originalData = blob(statement, column: 1),
+                  let replacementData = blob(statement, column: 2),
+                  let storedOriginal = try? cipher.decrypt(originalData),
+                  let storedReplacement = try? cipher.decrypt(replacementData),
+                  text(statement, column: 3) == sourceLanguage.rawValue,
+                  text(statement, column: 4) == targetLanguage.rawValue,
+                  normalize(storedOriginal) == normalize(original),
+                  normalize(storedReplacement) == normalize(replacement) else { continue }
+            matchingID = sqlite3_column_int64(statement, 0)
+            count = Int(sqlite3_column_int(statement, 5))
+            break
+        }
+
+        let nextCount = count + 1
+        if nextCount >= 2 {
+            try insertRule(
+                kind: .convert,
+                pattern: original,
+                replacement: replacement,
+                language: sourceLanguage,
+                applicationBundleIdentifier: nil
+            )
+            if let matchingID { try deleteRow(table: "learning_stats", id: matchingID) }
+            return true
+        }
+
+        if let matchingID {
+            let update = try prepare("""
+                UPDATE learning_stats SET correction_count = ?, updated_at = ? WHERE id = ?;
+                """)
+            defer { sqlite3_finalize(update) }
+            sqlite3_bind_int(update, 1, Int32(nextCount))
+            sqlite3_bind_double(update, 2, Date().timeIntervalSince1970)
+            sqlite3_bind_int64(update, 3, matchingID)
+            try step(update)
+        } else {
+            let insert = try prepare("""
+                INSERT INTO learning_stats
+                (original, replacement, source_language, target_language, correction_count, updated_at)
+                VALUES (?, ?, ?, ?, 1, ?);
+                """)
+            defer { sqlite3_finalize(insert) }
+            bind(try cipher.encrypt(original), to: insert, index: 1)
+            bind(try cipher.encrypt(replacement), to: insert, index: 2)
+            bind(sourceLanguage.rawValue, to: insert, index: 3)
+            bind(targetLanguage.rawValue, to: insert, index: 4)
+            sqlite3_bind_double(insert, 5, Date().timeIntervalSince1970)
+            try step(insert)
+        }
+        return false
+    }
+
+    private func normalize(_ value: String) -> String {
+        value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 
     private func readRules() throws -> [UserRule] {

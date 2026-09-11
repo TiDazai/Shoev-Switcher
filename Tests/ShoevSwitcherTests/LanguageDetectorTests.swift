@@ -171,6 +171,39 @@ final class LanguageDetectorTests: XCTestCase {
         )
     }
 
+    func testKnownThreeWordPhraseResolvesAmbiguousToken() {
+        let scores: [InputLanguage: [String: Double]] = [
+            .english: ["pyf.": 5],
+            .russian: ["знаю": 5.4]
+        ]
+        let detector = LanguageDetector(rules: RuleStore(), wordScorer: { word, language in
+            scores[language]?[word]
+        })
+        let context = DetectionContext(
+            recentLanguages: [.russian, .russian],
+            recentTokens: [
+                ContextToken(text: "я", language: .russian),
+                ContextToken(text: "не", language: .russian)
+            ]
+        )
+
+        XCTAssertEqual(
+            detector.evaluate(
+                original: "pyf.",
+                alternative: "знаю",
+                sourceLanguage: .english,
+                applicationBundleIdentifier: nil,
+                context: context
+            ).decision,
+            .convert(ConversionCandidate(
+                original: "pyf.",
+                replacement: "знаю",
+                sourceLanguage: .english,
+                targetLanguage: .russian
+            ))
+        )
+    }
+
     func testFullLexiconContainsCompanyNames() {
         XCTAssertNotNil(EmbeddedLexicon.shared.score(for: "OpenAI", language: .english))
         XCTAssertNotNil(EmbeddedLexicon.shared.score(for: "Microsoft", language: .english))
@@ -208,5 +241,33 @@ final class LanguageDetectorTests: XCTestCase {
                 targetLanguage: .russian
             ))
         )
+    }
+
+    func testRuleOnlyAppliesToItsSourceLanguage() {
+        let rules = RuleStore()
+        rules.replaceRules([
+            UserRule(
+                id: 1,
+                kind: .keep,
+                pattern: "a",
+                replacement: nil,
+                language: .english,
+                applicationBundleIdentifier: nil,
+                createdAt: Date()
+            )
+        ])
+
+        XCTAssertNotNil(rules.decision(
+            original: "a",
+            alternative: "ф",
+            sourceLanguage: .english,
+            applicationBundleIdentifier: nil
+        ))
+        XCTAssertNil(rules.decision(
+            original: "a",
+            alternative: "ф",
+            sourceLanguage: .russian,
+            applicationBundleIdentifier: nil
+        ))
     }
 }

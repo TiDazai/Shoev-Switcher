@@ -14,9 +14,11 @@ protocol RuleProviding: AnyObject {
 final class LanguageDetector {
     typealias WordValidator = (_ word: String, _ language: InputLanguage) -> Bool
     typealias WordScorer = (_ word: String, _ language: InputLanguage) -> Double?
+    typealias PhraseScorer = (_ words: [String], _ language: InputLanguage) -> Double
 
     private let rules: RuleProviding
     private let wordScorer: WordScorer
+    private let phraseScorer: PhraseScorer
 
     init(rules: RuleProviding, wordValidator: WordValidator? = nil) {
         self.rules = rules
@@ -27,11 +29,17 @@ final class LanguageDetector {
         } else {
             self.wordScorer = EmbeddedLexicon.shared.score
         }
+        self.phraseScorer = PhraseLexicon.shared.bonus
     }
 
-    init(rules: RuleProviding, wordScorer: @escaping WordScorer) {
+    init(
+        rules: RuleProviding,
+        wordScorer: @escaping WordScorer,
+        phraseScorer: @escaping PhraseScorer = PhraseLexicon.shared.bonus
+    ) {
         self.rules = rules
         self.wordScorer = wordScorer
+        self.phraseScorer = phraseScorer
     }
 
     func decision(
@@ -47,6 +55,10 @@ final class LanguageDetector {
             applicationBundleIdentifier: applicationBundleIdentifier,
             context: DetectionContext()
         ).decision
+    }
+
+    func isKnown(_ word: String, language: InputLanguage) -> Bool {
+        rules.isAccepted(word, language: language) || wordScorer(word, language) != nil
     }
 
     func evaluate(
@@ -131,7 +143,22 @@ final class LanguageDetector {
         if context.dominantLanguage == language {
             value += min(Double(context.recentLanguages.count) * 0.12, 0.48)
         }
+        let phraseWords = contiguousWords(for: language, context: context) + [word]
+        value += phraseScorer(phraseWords, language)
         return value
+    }
+
+    private func contiguousWords(
+        for language: InputLanguage,
+        context: DetectionContext
+    ) -> [String] {
+        var result: [String] = []
+        for token in context.recentTokens.reversed() {
+            guard token.language == language else { break }
+            result.insert(token.text, at: 0)
+            if result.count == 2 { break }
+        }
+        return result
     }
 
     private func likelyLanguage(

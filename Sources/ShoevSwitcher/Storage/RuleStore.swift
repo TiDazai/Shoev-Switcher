@@ -21,7 +21,7 @@ final class RuleStore: RuleProviding {
                     Self.normalize(rule.pattern) == normalized
                         && (rule.applicationBundleIdentifier == nil
                             || rule.applicationBundleIdentifier == applicationBundleIdentifier)
-                        && (rule.kind != .accept || rule.language == nil || rule.language == sourceLanguage)
+                        && (rule.language == nil || rule.language == sourceLanguage)
                 }
                 .sorted { lhs, rhs in
                     (lhs.applicationBundleIdentifier != nil ? 1 : 0)

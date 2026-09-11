@@ -61,6 +61,7 @@ enum DetectionDecision: Equatable {
 
 struct DetectionContext: Equatable {
     var recentLanguages: [InputLanguage] = []
+    var recentTokens: [ContextToken] = []
 
     var dominantLanguage: InputLanguage? {
         guard !recentLanguages.isEmpty else { return nil }
@@ -69,6 +70,11 @@ struct DetectionContext: Equatable {
         guard english != russian else { return recentLanguages.last }
         return english > russian ? .english : .russian
     }
+}
+
+struct ContextToken: Equatable {
+    let text: String
+    let language: InputLanguage
 }
 
 struct DetectionEvaluation: Equatable {
@@ -84,6 +90,27 @@ struct CompletedToken {
     let terminator: String
     let processIdentifier: pid_t
     let completedAt: Date
+    let correctionKind: JournalEventKind?
+
+    init(
+        displayedText: String,
+        alternativeText: String,
+        displayedLanguage: InputLanguage,
+        alternativeLanguage: InputLanguage,
+        terminator: String,
+        processIdentifier: pid_t,
+        completedAt: Date,
+        correctionKind: JournalEventKind? = nil
+    ) {
+        self.displayedText = displayedText
+        self.alternativeText = alternativeText
+        self.displayedLanguage = displayedLanguage
+        self.alternativeLanguage = alternativeLanguage
+        self.terminator = terminator
+        self.processIdentifier = processIdentifier
+        self.completedAt = completedAt
+        self.correctionKind = correctionKind
+    }
 }
 
 enum RuleKind: String, Codable {
