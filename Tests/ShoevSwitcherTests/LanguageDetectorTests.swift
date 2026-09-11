@@ -76,6 +76,39 @@ final class LanguageDetectorTests: XCTestCase {
         )
     }
 
+    func testConvertsEnglishKeyFToFrequentRussianA() {
+        let detector = LanguageDetector(rules: RuleStore())
+        XCTAssertEqual(
+            detector.decision(
+                original: "f",
+                alternative: "а",
+                sourceLanguage: .english,
+                applicationBundleIdentifier: nil
+            ),
+            .convert(ConversionCandidate(
+                original: "f",
+                replacement: "а",
+                sourceLanguage: .english,
+                targetLanguage: .russian
+            ))
+        )
+    }
+
+    func testKeepsFrequentEnglishSingleLetters() {
+        let detector = LanguageDetector(rules: RuleStore())
+        for (original, alternative) in [("a", "ф"), ("i", "ш"), ("x", "ч")] {
+            XCTAssertEqual(
+                detector.decision(
+                    original: original,
+                    alternative: alternative,
+                    sourceLanguage: .english,
+                    applicationBundleIdentifier: nil
+                ),
+                .keep
+            )
+        }
+    }
+
     func testPhraseTypedOnEnglishKeysBecomesRussianFromFirstWord() {
         let detector = LanguageDetector(rules: RuleStore())
         let first = detector.evaluate(

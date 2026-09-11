@@ -108,7 +108,10 @@ final class LanguageDetector {
             for: original.count,
             contextSupportsTarget: context.dominantLanguage == targetLanguage
         )
-        if originalScore != nil {
+        // Single Latin letters are valid dictionary entries, but that alone must not
+        // outweigh a clearly more frequent one-letter word in the other language
+        // (for example, English-key `f` is Russian `а`).
+        if originalScore != nil, original.count > 1 {
             margin += 0.65
         }
         guard alternativeScore - originalValue >= margin else {
