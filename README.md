@@ -12,7 +12,7 @@ Shoev Switcher работает локально, живёт в строке м�
 
 ## Скачать
 
-[Скачать Shoev Switcher для macOS](https://github.com/TiDazai/Shoev-Switcher/releases/latest)
+[Скачать Shoev Switcher для macOS](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.2.0-alpha/Shoev-Switcher.dmg)
 
 Откройте DMG, перенесите Shoev Switcher в `Applications` и выдайте приложению
 доступ к мониторингу ввода и универсальному доступу. Текущая тестовая сборка не
