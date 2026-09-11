@@ -146,6 +146,9 @@ final class LanguageDetector {
         if context.dominantLanguage == language {
             value += min(Double(context.recentLanguages.count) * 0.12, 0.48)
         }
+        if context.applicationLanguage == language {
+            value += 0.28
+        }
         let phraseWords = contiguousWords(for: language, context: context) + [word]
         value += phraseScorer(phraseWords, language)
         return value

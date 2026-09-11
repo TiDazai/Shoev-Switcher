@@ -12,6 +12,9 @@ final class InputEngine: KeyboardMonitorDelegate {
     private let journalStore: JournalStore?
     private let injector: EventInjector
     private let defaults: UserDefaults
+    private let selectionConverter: TextSelectionConverter
+    private let correctionNotifier: CorrectionNotifier
+    private let applicationProfiles: ApplicationLanguageProfileStore
     private let sensitiveInputGuard = SensitiveInputGuard()
 
     private var current = TypedToken()
@@ -19,8 +22,8 @@ final class InputEngine: KeyboardMonitorDelegate {
     private var recentLanguages: [InputLanguage] = []
     private var recentTokens: [ContextToken] = []
     private var activeProcessIdentifier: pid_t?
-    private var rightShiftWasDown = false
-    private var lastRightShiftRelease: Date?
+    private var shortcutShiftWasDown = false
+    private var lastShortcutShiftRelease: Date?
 
     init(
         sourceManager: InputSourceManager,
@@ -28,7 +31,10 @@ final class InputEngine: KeyboardMonitorDelegate {
         ruleStore: RuleStore,
         journalStore: JournalStore?,
         injector: EventInjector = EventInjector(),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        selectionConverter: TextSelectionConverter = TextSelectionConverter(),
+        correctionNotifier: CorrectionNotifier = CorrectionNotifier(),
+        applicationProfiles: ApplicationLanguageProfileStore = ApplicationLanguageProfileStore()
     ) {
         self.sourceManager = sourceManager
         self.detector = detector
@@ -36,6 +42,9 @@ final class InputEngine: KeyboardMonitorDelegate {
         self.journalStore = journalStore
         self.injector = injector
         self.defaults = defaults
+        self.selectionConverter = selectionConverter
+        self.correctionNotifier = correctionNotifier
+        self.applicationProfiles = applicationProfiles
     }
 
     func reloadRules() {
@@ -124,20 +133,23 @@ final class InputEngine: KeyboardMonitorDelegate {
     }
 
     func keyboardMonitor(_ monitor: KeyboardMonitor, flagsChanged event: CGEvent, keyCode: CGKeyCode) {
-        guard defaults.bool(forKey: PreferenceKey.manualConversion), keyCode == 60 else { return }
+        let shortcut = ManualShortcut(
+            rawValue: defaults.string(forKey: PreferenceKey.manualShortcut) ?? ""
+        ) ?? .rightShift
+        guard defaults.bool(forKey: PreferenceKey.manualConversion), keyCode == shortcut.keyCode else { return }
         let isDown = event.flags.contains(.maskShift)
         if isDown {
-            rightShiftWasDown = true
+            shortcutShiftWasDown = true
             return
         }
-        guard rightShiftWasDown else { return }
-        rightShiftWasDown = false
+        guard shortcutShiftWasDown else { return }
+        shortcutShiftWasDown = false
 
         let now = Date()
-        defer { lastRightShiftRelease = now }
-        if let previous = lastRightShiftRelease, now.timeIntervalSince(previous) <= 0.45 {
+        defer { lastShortcutShiftRelease = now }
+        if let previous = lastShortcutShiftRelease, now.timeIntervalSince(previous) <= 0.45 {
             performManualConversion()
-            lastRightShiftRelease = nil
+            lastShortcutShiftRelease = nil
         }
     }
 
@@ -170,9 +182,13 @@ final class InputEngine: KeyboardMonitorDelegate {
                 alternative: alternative,
                 sourceLanguage: sourceLanguage,
                 applicationBundleIdentifier: application?.bundleIdentifier,
-                context: defaults.bool(forKey: PreferenceKey.phraseContext)
-                    ? DetectionContext(recentLanguages: recentLanguages, recentTokens: recentTokens)
-                    : DetectionContext()
+                context: DetectionContext(
+                    recentLanguages: defaults.bool(forKey: PreferenceKey.phraseContext) ? recentLanguages : [],
+                    recentTokens: defaults.bool(forKey: PreferenceKey.phraseContext) ? recentTokens : [],
+                    applicationLanguage: defaults.bool(forKey: PreferenceKey.applicationContext)
+                        ? applicationProfiles.preferredLanguage(for: application?.bundleIdentifier)
+                        : nil
+                )
             )
             : DetectionEvaluation(decision: .keep, likelyLanguage: sourceLanguage)
 
@@ -207,6 +223,7 @@ final class InputEngine: KeyboardMonitorDelegate {
                 with: candidate.replacement,
                 trailingEvent: trailingEvent
             )
+            correctionNotifier.show(original: candidate.original, replacement: candidate.replacement)
             lastCompleted = CompletedToken(
                 displayedText: candidate.replacement,
                 alternativeText: candidate.original,
@@ -235,6 +252,38 @@ final class InputEngine: KeyboardMonitorDelegate {
         let application = NSWorkspace.shared.frontmostApplication
         let pid = application?.processIdentifier ?? 0
 
+        guard defaults.bool(forKey: PreferenceKey.enabled),
+              !isExcluded(application),
+              !sensitiveInputGuard.isSensitive(processIdentifier: application?.processIdentifier) else {
+            return
+        }
+
+        if let sourceLanguage = sourceManager.currentLanguage(),
+           let conversion = selectionConverter.convertSelection(
+               sourceLanguage: sourceLanguage,
+               sourceManager: sourceManager,
+               injector: injector
+           ) {
+            sourceManager.select(conversion.targetLanguage)
+            correctionNotifier.show(original: conversion.original, replacement: conversion.replacement)
+            log(
+                kind: .manualCorrection,
+                original: conversion.original,
+                replacement: conversion.replacement,
+                sourceLanguage: conversion.sourceLanguage,
+                targetLanguage: conversion.targetLanguage,
+                application: application
+            )
+            if defaults.bool(forKey: PreferenceKey.applicationContext) {
+                applicationProfiles.observe(
+                    conversion.targetLanguage,
+                    applicationBundleIdentifier: application?.bundleIdentifier
+                )
+            }
+            resetAll()
+            return
+        }
+
         if !current.isEmpty,
            let sourceLanguage = sourceManager.currentLanguage() {
             let targetLanguage: InputLanguage = sourceLanguage == .english ? .russian : .english
@@ -243,6 +292,7 @@ final class InputEngine: KeyboardMonitorDelegate {
                   alternative != original else { return }
             sourceManager.select(targetLanguage)
             injector.replace(deleteCount: original.count, with: alternative)
+            correctionNotifier.show(original: original, replacement: alternative)
             lastCompleted = CompletedToken(
                 displayedText: alternative,
                 alternativeText: original,
@@ -279,6 +329,7 @@ final class InputEngine: KeyboardMonitorDelegate {
             deleteCount: completed.displayedText.count + completed.terminator.count,
             with: completed.alternativeText + completed.terminator
         )
+        correctionNotifier.show(original: completed.displayedText, replacement: completed.alternativeText)
         log(
             kind: .manualCorrection,
             original: completed.displayedText,
@@ -327,6 +378,7 @@ final class InputEngine: KeyboardMonitorDelegate {
             deleteCount: completed.displayedText.count + completed.terminator.count,
             with: completed.alternativeText + completed.terminator
         )
+        correctionNotifier.show(original: completed.displayedText, replacement: completed.alternativeText)
         log(
             kind: .undone,
             original: completed.displayedText,
@@ -444,6 +496,12 @@ final class InputEngine: KeyboardMonitorDelegate {
     }
 
     private func recordToken(_ text: String, language: InputLanguage, terminator: String) {
+        if defaults.bool(forKey: PreferenceKey.applicationContext) {
+            applicationProfiles.observe(
+                language,
+                applicationBundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            )
+        }
         recentLanguages.append(language)
         recentTokens.append(ContextToken(text: text, language: language))
         if recentLanguages.count > 5 {

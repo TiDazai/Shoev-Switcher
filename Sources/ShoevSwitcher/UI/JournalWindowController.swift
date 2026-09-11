@@ -6,22 +6,25 @@ final class JournalWindowController: NSWindowController,
     NSTableViewDelegate,
     NSSearchFieldDelegate {
 
-    private enum ViewMode { case journal, rules }
+    private enum ViewMode { case journal, rules, learning }
 
     private let store: JournalStore
     private let onRulesChanged: () -> Void
     private let tableView = NSTableView()
     private let searchField = NSSearchField()
     private let filterPopup = NSPopUpButton()
-    private let modeControl = NSSegmentedControl(labels: ["Дневник", "Правила"], trackingMode: .selectOne, target: nil, action: nil)
+    private let modeControl = NSSegmentedControl(labels: ["Дневник", "Правила", "Обучение"], trackingMode: .selectOne, target: nil, action: nil)
     private let journalButtons = NSStackView()
     private let ruleButtons = NSStackView()
+    private let learningButtons = NSStackView()
 
     private var mode: ViewMode = .journal
     private var allEntries: [JournalEntry] = []
     private var visibleEntries: [JournalViewEntry] = []
     private var allRules: [UserRule] = []
     private var visibleRules: [UserRule] = []
+    private var allLearningEntries: [LearningEntry] = []
+    private var visibleLearningEntries: [LearningEntry] = []
 
     init(store: JournalStore, onRulesChanged: @escaping () -> Void) {
         self.store = store
@@ -51,10 +54,18 @@ final class JournalWindowController: NSWindowController,
             self?.allRules = rules
             self?.applyFilters()
         }
+        store.learningEntries { [weak self] entries in
+            self?.allLearningEntries = entries
+            self?.applyFilters()
+        }
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
-        mode == .journal ? visibleEntries.count : visibleRules.count
+        switch mode {
+        case .journal: return visibleEntries.count
+        case .rules: return visibleRules.count
+        case .learning: return visibleLearningEntries.count
+        }
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -80,6 +91,17 @@ final class JournalWindowController: NSWindowController,
             case "replacement": value = rule.replacement ?? "—"
             case "language": value = rule.language?.title ?? "Любой"
             default: value = rule.applicationBundleIdentifier ?? "Все приложения"
+            }
+        case .learning:
+            guard row < visibleLearningEntries.count else { return nil }
+            let entry = visibleLearningEntries[row]
+            switch identifier {
+            case "status": value = entry.isLearned ? "Выучено" : "Наблюдение"
+            case "pattern": value = entry.original
+            case "replacement": value = entry.replacement
+            case "language": value = "\(entry.sourceLanguage.title) → \(entry.targetLanguage.title)"
+            case "count": value = String(entry.correctionCount)
+            default: value = JournalViewEntry.formatter.string(from: entry.updatedAt)
             }
         }
         let field = NSTextField(labelWithString: value)
@@ -128,9 +150,11 @@ final class JournalWindowController: NSWindowController,
 
         configureJournalButtons()
         configureRuleButtons()
+        configureLearningButtons()
         ruleButtons.isHidden = true
+        learningButtons.isHidden = true
 
-        let root = NSStackView(views: [toolbar, scrollView, journalButtons, ruleButtons])
+        let root = NSStackView(views: [toolbar, scrollView, journalButtons, ruleButtons, learningButtons])
         root.orientation = .vertical
         root.alignment = .leading
         root.spacing = 10
@@ -142,6 +166,7 @@ final class JournalWindowController: NSWindowController,
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         journalButtons.translatesAutoresizingMaskIntoConstraints = false
         ruleButtons.translatesAutoresizingMaskIntoConstraints = false
+        learningButtons.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             root.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
             root.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
@@ -151,7 +176,8 @@ final class JournalWindowController: NSWindowController,
             scrollView.widthAnchor.constraint(equalTo: root.widthAnchor),
             scrollView.heightAnchor.constraint(greaterThanOrEqualToConstant: 360),
             journalButtons.widthAnchor.constraint(equalTo: root.widthAnchor),
-            ruleButtons.widthAnchor.constraint(equalTo: root.widthAnchor)
+            ruleButtons.widthAnchor.constraint(equalTo: root.widthAnchor),
+            learningButtons.widthAnchor.constraint(equalTo: root.widthAnchor)
         ])
         configureColumns()
     }
@@ -185,6 +211,14 @@ final class JournalWindowController: NSWindowController,
         ruleButtons.spacing = 8
     }
 
+    private func configureLearningButtons() {
+        learningButtons.setViews([
+            NSButton(title: "Удалить обучение", target: self, action: #selector(deleteSelectedLearningEntry))
+        ], in: .leading)
+        learningButtons.orientation = .horizontal
+        learningButtons.spacing = 8
+    }
+
     private func configureColumns() {
         for column in tableView.tableColumns { tableView.removeTableColumn(column) }
         switch mode {
@@ -200,6 +234,13 @@ final class JournalWindowController: NSWindowController,
             addColumn("replacement", title: "Замена", width: 210)
             addColumn("language", title: "Язык", width: 100)
             addColumn("app", title: "Приложение", width: 180)
+        case .learning:
+            addColumn("status", title: "Состояние", width: 110)
+            addColumn("pattern", title: "Было", width: 190)
+            addColumn("replacement", title: "Стало", width: 190)
+            addColumn("language", title: "Направление", width: 145)
+            addColumn("count", title: "Повторов", width: 75)
+            addColumn("updated", title: "Последнее", width: 130)
         }
         tableView.reloadData()
     }
@@ -237,6 +278,17 @@ final class JournalWindowController: NSWindowController,
                 ].joined(separator: " ").lowercased()
                 return query.isEmpty || haystack.contains(query)
             }
+        case .learning:
+            visibleLearningEntries = allLearningEntries.filter { entry in
+                let haystack = [
+                    entry.original,
+                    entry.replacement,
+                    entry.sourceLanguage.title,
+                    entry.targetLanguage.title,
+                    entry.isLearned ? "выучено" : "наблюдение"
+                ].joined(separator: " ").lowercased()
+                return query.isEmpty || haystack.contains(query)
+            }
         }
         tableView.reloadData()
     }
@@ -253,11 +305,22 @@ final class JournalWindowController: NSWindowController,
         return visibleRules[row]
     }
 
+    private var selectedLearningEntry: LearningEntry? {
+        let row = tableView.selectedRow
+        guard mode == .learning, row >= 0, row < visibleLearningEntries.count else { return nil }
+        return visibleLearningEntries[row]
+    }
+
     @objc private func switchViewMode() {
-        mode = modeControl.selectedSegment == 0 ? .journal : .rules
-        filterPopup.isHidden = mode == .rules
-        journalButtons.isHidden = mode == .rules
-        ruleButtons.isHidden = mode == .journal
+        switch modeControl.selectedSegment {
+        case 0: mode = .journal
+        case 1: mode = .rules
+        default: mode = .learning
+        }
+        filterPopup.isHidden = mode != .journal
+        journalButtons.isHidden = mode != .journal
+        ruleButtons.isHidden = mode != .rules
+        learningButtons.isHidden = mode != .learning
         configureColumns()
         applyFilters()
     }
@@ -346,6 +409,21 @@ final class JournalWindowController: NSWindowController,
         alert.addButton(withTitle: "Отмена")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         store.deleteRule(id: rule.id) { [weak self] in self?.rulesDidChange() }
+    }
+
+    @objc private func deleteSelectedLearningEntry() {
+        guard let entry = selectedLearningEntry else { return }
+        let alert = NSAlert()
+        alert.messageText = "Удалить обучение для «\(entry.original)»?"
+        alert.informativeText = entry.isLearned
+            ? "Счётчик и созданное автоматически правило будут удалены."
+            : "Накопленный счётчик ручных исправлений будет удалён."
+        alert.addButton(withTitle: "Удалить")
+        alert.addButton(withTitle: "Отмена")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        store.deleteLearningEntry(id: entry.id, removeLearnedRule: true) { [weak self] in
+            self?.rulesDidChange()
+        }
     }
 
     @objc private func exportRules() {
@@ -494,7 +572,7 @@ private struct JournalViewEntry {
         }
     }
 
-    private static let formatter: DateFormatter = {
+    fileprivate static let formatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .medium

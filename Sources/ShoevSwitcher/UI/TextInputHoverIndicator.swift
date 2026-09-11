@@ -6,12 +6,15 @@ final class TextInputHoverIndicator {
     private let sourceManager: InputSourceManager
     private let defaults: UserDefaults
     private let systemWideElement = AXUIElementCreateSystemWide()
+    private let caretLocator = AccessibilityCaretLocator()
     private let panel: NSPanel
     private let flagLabel = NSTextField(labelWithString: "")
 
     private var pendingEvaluation: DispatchWorkItem?
     private var latestQuartzPoint = CGPoint.zero
     private var lastEvaluation = Date.distantPast
+    private var hideWork: DispatchWorkItem?
+    private var positionedAtCaret = false
 
     init(sourceManager: InputSourceManager, defaults: UserDefaults = .standard) {
         self.sourceManager = sourceManager
@@ -27,7 +30,7 @@ final class TextInputHoverIndicator {
 
     func mouseMoved(to quartzPoint: CGPoint) {
         latestQuartzPoint = quartzPoint
-        if panel.isVisible {
+        if panel.isVisible, !positionedAtCaret {
             positionPanel(near: NSEvent.mouseLocation)
         }
         let elapsed = Date().timeIntervalSince(lastEvaluation)
@@ -45,6 +48,17 @@ final class TextInputHoverIndicator {
         }
         pendingEvaluation = work
         DispatchQueue.main.asyncAfter(deadline: .now() + evaluationInterval - elapsed, execute: work)
+    }
+
+    func inputActivityOccurred() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+            guard let self,
+                  self.defaults.bool(forKey: PreferenceKey.enabled),
+                  self.defaults.bool(forKey: PreferenceKey.hoverLanguageIndicator),
+                  let language = self.sourceManager.currentLanguage(),
+                  let caret = self.caretLocator.caretLocation() else { return }
+            self.show(language: language, near: caret, atCaret: true)
+        }
     }
 
     func preferenceDidChange() {
@@ -74,9 +88,12 @@ final class TextInputHoverIndicator {
             return
         }
 
-        flagLabel.stringValue = language.flag
-        positionPanel(near: NSEvent.mouseLocation)
-        panel.orderFrontRegardless()
+        let caret = caretLocator.caretLocation()
+        show(
+            language: language,
+            near: caret ?? NSEvent.mouseLocation,
+            atCaret: caret != nil
+        )
     }
 
     private func element(at point: CGPoint) -> AXUIElement? {
@@ -187,7 +204,20 @@ final class TextInputHoverIndicator {
     }
 
     private func hide() {
+        hideWork?.cancel()
+        hideWork = nil
         panel.orderOut(nil)
+    }
+
+    private func show(language: InputLanguage, near point: NSPoint, atCaret: Bool) {
+        positionedAtCaret = atCaret
+        flagLabel.stringValue = language.flag
+        positionPanel(near: point)
+        panel.orderFrontRegardless()
+        hideWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.panel.orderOut(nil) }
+        hideWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
     private let evaluationInterval: TimeInterval = 0.10

@@ -12,6 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: SettingsWindowController?
     private var journalWindowController: JournalWindowController?
     private var hoverIndicator: TextInputHoverIndicator?
+    private var layoutMemoryController: ApplicationLayoutMemoryController?
+    private var applicationProfiles: ApplicationLanguageProfileStore?
+    private var correctionNotifier: CorrectionNotifier?
     private var permissionTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -22,11 +25,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let detector = LanguageDetector(rules: ruleStore)
+        let profiles = ApplicationLanguageProfileStore()
+        let notifier = CorrectionNotifier()
+        applicationProfiles = profiles
+        correctionNotifier = notifier
         let engine = InputEngine(
             sourceManager: sourceManager,
             detector: detector,
             ruleStore: ruleStore,
-            journalStore: journalStore
+            journalStore: journalStore,
+            correctionNotifier: notifier,
+            applicationProfiles: profiles
         )
         inputEngine = engine
         keyboardMonitor.delegate = engine
@@ -36,6 +45,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         keyboardMonitor.mouseMovedHandler = { [weak hoverIndicator] point in
             hoverIndicator?.mouseMoved(to: point)
         }
+        keyboardMonitor.inputActivityHandler = { [weak hoverIndicator] in
+            hoverIndicator?.inputActivityOccurred()
+        }
+
+        let layoutMemory = ApplicationLayoutMemoryController(sourceManager: sourceManager)
+        layoutMemoryController = layoutMemory
+        layoutMemory.start()
 
         menuBarController = MenuBarController(
             monitor: keyboardMonitor,
@@ -56,6 +72,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         permissionTimer?.invalidate()
         hoverIndicator?.stop()
+        correctionNotifier?.hide()
+        applicationProfiles?.flush()
+        layoutMemoryController?.stop()
         keyboardMonitor.stop()
     }
 

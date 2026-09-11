@@ -62,6 +62,7 @@ enum DetectionDecision: Equatable {
 struct DetectionContext: Equatable {
     var recentLanguages: [InputLanguage] = []
     var recentTokens: [ContextToken] = []
+    var applicationLanguage: InputLanguage?
 
     var dominantLanguage: InputLanguage? {
         guard !recentLanguages.isEmpty else { return nil }
@@ -69,6 +70,25 @@ struct DetectionContext: Equatable {
         let russian = recentLanguages.count - english
         guard english != russian else { return recentLanguages.last }
         return english > russian ? .english : .russian
+    }
+}
+
+enum ManualShortcut: String, CaseIterable {
+    case rightShift
+    case leftShift
+
+    var keyCode: CGKeyCode {
+        switch self {
+        case .rightShift: return 60
+        case .leftShift: return 56
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .rightShift: return "Двойной правый Shift"
+        case .leftShift: return "Двойной левый Shift"
+        }
     }
 }
 
@@ -127,6 +147,19 @@ struct UserRule: Codable, Identifiable, Equatable {
     let language: InputLanguage?
     let applicationBundleIdentifier: String?
     let createdAt: Date
+}
+
+struct LearningEntry: Identifiable, Equatable {
+    let id: Int64
+    let original: String
+    let replacement: String
+    let sourceLanguage: InputLanguage
+    let targetLanguage: InputLanguage
+    let correctionCount: Int
+    let updatedAt: Date
+    let learnedRuleID: Int64?
+
+    var isLearned: Bool { learnedRuleID != nil }
 }
 
 enum JournalEventKind: String, Codable {

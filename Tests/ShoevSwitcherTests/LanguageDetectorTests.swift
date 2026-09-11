@@ -183,6 +183,31 @@ final class LanguageDetectorTests: XCTestCase {
         )
     }
 
+    func testApplicationLanguageProvidesSmallTieBreaker() {
+        let scores: [InputLanguage: [String: Double]] = [
+            .english: ["xy": 5],
+            .russian: ["аб": 6.6]
+        ]
+        let detector = LanguageDetector(rules: RuleStore(), wordScorer: { word, language in
+            scores[language]?[word]
+        })
+        XCTAssertEqual(
+            detector.evaluate(
+                original: "xy",
+                alternative: "аб",
+                sourceLanguage: .english,
+                applicationBundleIdentifier: nil,
+                context: DetectionContext(applicationLanguage: .russian)
+            ).decision,
+            .convert(ConversionCandidate(
+                original: "xy",
+                replacement: "аб",
+                sourceLanguage: .english,
+                targetLanguage: .russian
+            ))
+        )
+    }
+
     func testRareKnownBrandIsProtectedFromPlausibleAlternative() {
         let scores: [InputLanguage: [String: Double]] = [
             .english: ["brand": 1.2],

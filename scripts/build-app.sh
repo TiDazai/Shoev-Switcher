@@ -49,7 +49,6 @@ build_number="${BUILD_NUMBER:-1}"
 if [[ -n "${SIGN_IDENTITY:-}" && "$SIGN_IDENTITY" != "-" ]]; then
   codesign \
     --force \
-    --deep \
     --options runtime \
     --timestamp \
     --entitlements "$project_dir/Resources/ShoevSwitcher.entitlements" \
@@ -65,9 +64,9 @@ else
       echo "Could not resolve local signing certificate" >&2
       exit 1
     fi
-    codesign --force --deep --sign "$certificate_sha" --keychain "$local_keychain" "$app_bundle"
+    codesign --force --sign "$certificate_sha" --keychain "$local_keychain" "$app_bundle"
   else
-    codesign --force --deep --sign - "$app_bundle"
+    codesign --force --sign - "$app_bundle"
   fi
 fi
 

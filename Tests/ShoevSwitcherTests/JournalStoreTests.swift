@@ -94,6 +94,25 @@ final class JournalStoreTests: XCTestCase {
         XCTAssertEqual(rules[0].pattern, "ghbdtn")
         XCTAssertEqual(rules[0].replacement, "привет")
         XCTAssertEqual(rules[0].language, .english)
+
+        let loadedLearning = expectation(description: "Loaded learning")
+        store.learningEntries { entries in
+            XCTAssertEqual(entries.count, 1)
+            XCTAssertEqual(entries.first?.correctionCount, 2)
+            XCTAssertEqual(entries.first?.learnedRuleID, rules.first?.id)
+            loadedLearning.fulfill()
+        }
+        wait(for: [loadedLearning], timeout: 3)
+
+        let deletedLearning = expectation(description: "Deleted learning and rule")
+        store.learningEntries { entries in
+            store.deleteLearningEntry(
+                id: entries[0].id,
+                removeLearnedRule: true
+            ) { deletedLearning.fulfill() }
+        }
+        wait(for: [deletedLearning], timeout: 3)
+        XCTAssertTrue(store.loadRules().isEmpty)
     }
 
     func testRuleCanBeUpdatedDeletedAndImportedWithoutDuplicates() throws {

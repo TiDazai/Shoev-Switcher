@@ -12,6 +12,7 @@ protocol KeyboardMonitorDelegate: AnyObject {
 final class KeyboardMonitor {
     weak var delegate: KeyboardMonitorDelegate?
     var mouseMovedHandler: ((CGPoint) -> Void)?
+    var inputActivityHandler: (() -> Void)?
 
     private let logger = Logger(subsystem: "com.shoev.switcher", category: "KeyboardMonitor")
     private var eventTap: CFMachPort?
@@ -96,10 +97,13 @@ final class KeyboardMonitor {
             mouseMovedHandler?(event.location)
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             delegate?.keyboardMonitorDidResetInput(self)
+            inputActivityHandler?()
         case .flagsChanged:
+            inputActivityHandler?()
             let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
             delegate?.keyboardMonitor(self, flagsChanged: event, keyCode: keyCode)
         case .keyDown:
+            inputActivityHandler?()
             let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
             let text = Self.unicodeString(from: event)
             keyDownCountSinceTerminator += 1

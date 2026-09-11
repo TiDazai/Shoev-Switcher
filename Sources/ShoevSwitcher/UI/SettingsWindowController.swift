@@ -9,10 +9,13 @@ final class SettingsWindowController: NSWindowController {
     private let automaticCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let manualCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let phraseContextCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let applicationContextCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let layoutMemoryCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let learningCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let undoCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let rememberUndoCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let hoverIndicatorCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let correctionNotificationsCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let journalCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let fullDiaryCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
 
@@ -20,13 +23,14 @@ final class SettingsWindowController: NSWindowController {
     private let russianPopup = NSPopUpButton()
     private let exclusionsView = NSTextView()
     private let permissionLabel = NSTextField(labelWithString: "")
+    private let manualShortcutPopup = NSPopUpButton()
 
     init(monitor: KeyboardMonitor, sourceManager: InputSourceManager, onSaved: @escaping () -> Void) {
         self.monitor = monitor
         self.sourceManager = sourceManager
         self.onSaved = onSaved
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 660, height: 590),
+            contentRect: NSRect(x: 0, y: 0, width: 680, height: 590),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -53,17 +57,25 @@ final class SettingsWindowController: NSWindowController {
 
         configureCheckbox(enabledCheckbox, title: "Shoev Switcher включён")
         configureCheckbox(automaticCheckbox, title: "Исправлять раскладку автоматически")
-        configureCheckbox(manualCheckbox, title: "Ручная конвертация двойным правым Shift")
+        configureCheckbox(manualCheckbox, title: "Ручная конвертация двойным выбранным Shift")
         configureCheckbox(phraseContextCheckbox, title: "Учитывать предыдущие слова и частые фразы")
+        configureCheckbox(applicationContextCheckbox, title: "Учитывать привычный язык каждого приложения")
+        configureCheckbox(layoutMemoryCheckbox, title: "Запоминать и восстанавливать раскладку приложений")
         configureCheckbox(learningCheckbox, title: "Обучаться после повторных ручных исправлений")
         configureCheckbox(undoCheckbox, title: "Отменять автоисправление клавишей Backspace")
         configureCheckbox(rememberUndoCheckbox, title: "Запоминать отменённое исправление как исключение")
         configureCheckbox(hoverIndicatorCheckbox, title: "Показывать флаг раскладки рядом с курсором")
+        configureCheckbox(correctionNotificationsCheckbox, title: "Показывать короткое уведомление об исправлении")
         configureCheckbox(journalCheckbox, title: "Сохранять журнал исправлений")
         configureCheckbox(fullDiaryCheckbox, title: "Сохранять все завершённые слова")
+        for shortcut in ManualShortcut.allCases {
+            manualShortcutPopup.addItem(withTitle: shortcut.title)
+            manualShortcutPopup.lastItem?.representedObject = shortcut.rawValue
+        }
 
         let tabs = NSTabView()
         tabs.addTabViewItem(makeBehaviorTab())
+        tabs.addTabViewItem(makeInterfaceAndLearningTab())
         tabs.addTabViewItem(makeLayoutsTab())
         tabs.addTabViewItem(makePrivacyTab())
 
@@ -95,12 +107,24 @@ final class SettingsWindowController: NSWindowController {
         item.view = tabContent([
             option(enabledCheckbox, "Главный выключатель приложения."),
             option(automaticCheckbox, "Проверять слова на границе и исправлять неверную раскладку."),
-            option(manualCheckbox, "Конвертировать текущее или последнее слово по двойному правому Shift."),
+            option(manualCheckbox, "Конвертировать выделение, текущее или последнее слово выбранным двойным Shift."),
+            labeledControl("Горячая клавиша:", manualShortcutPopup),
             option(phraseContextCheckbox, "Использовать до пяти предыдущих слов для коротких и неоднозначных фраз."),
+            option(applicationContextCheckbox, "Мягко учитывать, какой язык чаще используется в текущем приложении."),
+            option(layoutMemoryCheckbox, "При возврате в приложение включать последнюю использованную там раскладку.")
+        ])
+        return item
+    }
+
+    private func makeInterfaceAndLearningTab() -> NSTabViewItem {
+        let item = NSTabViewItem(identifier: "interfaceAndLearning")
+        item.label = "Интерфейс и обучение"
+        item.view = tabContent([
             option(learningCheckbox, "После двух одинаковых ручных исправлений создать личное правило."),
             option(undoCheckbox, "Вернуть ошибочно исправленное слово сразу после замены."),
             option(rememberUndoCheckbox, "Автоматически добавить правило «никогда не менять» после отмены."),
-            option(hoverIndicatorCheckbox, "Показывать 🇷🇺 или 🇬🇧 только над доступным полем ввода.")
+            option(hoverIndicatorCheckbox, "Показывать 🇷🇺 или 🇬🇧 только над доступным полем ввода."),
+            option(correctionNotificationsCheckbox, "На секунду показывать «было → стало» рядом с кареткой.")
         ])
         return item
     }
@@ -201,6 +225,16 @@ final class SettingsWindowController: NSWindowController {
         return stack
     }
 
+    private func labeledControl(_ title: String, _ control: NSView) -> NSView {
+        let label = NSTextField(labelWithString: title)
+        let row = NSStackView(views: [label, control])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 10
+        row.edgeInsets = NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 0)
+        return row
+    }
+
     private func sectionTitle(_ text: String) -> NSTextField {
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: 15, weight: .semibold)
@@ -223,12 +257,21 @@ final class SettingsWindowController: NSWindowController {
         set(automaticCheckbox, from: PreferenceKey.automaticCorrection, defaults: defaults)
         set(manualCheckbox, from: PreferenceKey.manualConversion, defaults: defaults)
         set(phraseContextCheckbox, from: PreferenceKey.phraseContext, defaults: defaults)
+        set(applicationContextCheckbox, from: PreferenceKey.applicationContext, defaults: defaults)
+        set(layoutMemoryCheckbox, from: PreferenceKey.rememberApplicationLayout, defaults: defaults)
         set(learningCheckbox, from: PreferenceKey.automaticLearning, defaults: defaults)
         set(undoCheckbox, from: PreferenceKey.undoAutomaticCorrection, defaults: defaults)
         set(rememberUndoCheckbox, from: PreferenceKey.rememberUndoneCorrections, defaults: defaults)
         set(hoverIndicatorCheckbox, from: PreferenceKey.hoverLanguageIndicator, defaults: defaults)
+        set(correctionNotificationsCheckbox, from: PreferenceKey.correctionNotifications, defaults: defaults)
         set(journalCheckbox, from: PreferenceKey.journalEnabled, defaults: defaults)
         set(fullDiaryCheckbox, from: PreferenceKey.fullDiaryEnabled, defaults: defaults)
+        let shortcut = defaults.string(forKey: PreferenceKey.manualShortcut) ?? ManualShortcut.rightShift.rawValue
+        manualShortcutPopup.selectItem(
+            at: manualShortcutPopup.itemArray.firstIndex {
+                ($0.representedObject as? String) == shortcut
+            } ?? 0
+        )
 
         let exclusions = defaults.stringArray(forKey: PreferenceKey.excludedApplications) ?? []
         exclusionsView.string = exclusions.sorted().joined(separator: "\n")
@@ -260,6 +303,7 @@ final class SettingsWindowController: NSWindowController {
 
     private func updateDependencies() {
         phraseContextCheckbox.isEnabled = automaticCheckbox.state == .on
+        applicationContextCheckbox.isEnabled = automaticCheckbox.state == .on
         undoCheckbox.isEnabled = automaticCheckbox.state == .on
         rememberUndoCheckbox.isEnabled = undoCheckbox.isEnabled && undoCheckbox.state == .on
         learningCheckbox.isEnabled = manualCheckbox.state == .on
@@ -278,12 +322,18 @@ final class SettingsWindowController: NSWindowController {
         savePreference(automaticCheckbox, to: PreferenceKey.automaticCorrection, defaults: defaults)
         savePreference(manualCheckbox, to: PreferenceKey.manualConversion, defaults: defaults)
         savePreference(phraseContextCheckbox, to: PreferenceKey.phraseContext, defaults: defaults)
+        savePreference(applicationContextCheckbox, to: PreferenceKey.applicationContext, defaults: defaults)
+        savePreference(layoutMemoryCheckbox, to: PreferenceKey.rememberApplicationLayout, defaults: defaults)
         savePreference(learningCheckbox, to: PreferenceKey.automaticLearning, defaults: defaults)
         savePreference(undoCheckbox, to: PreferenceKey.undoAutomaticCorrection, defaults: defaults)
         savePreference(rememberUndoCheckbox, to: PreferenceKey.rememberUndoneCorrections, defaults: defaults)
         savePreference(hoverIndicatorCheckbox, to: PreferenceKey.hoverLanguageIndicator, defaults: defaults)
+        savePreference(correctionNotificationsCheckbox, to: PreferenceKey.correctionNotifications, defaults: defaults)
         savePreference(journalCheckbox, to: PreferenceKey.journalEnabled, defaults: defaults)
         savePreference(fullDiaryCheckbox, to: PreferenceKey.fullDiaryEnabled, defaults: defaults)
+        if let shortcut = manualShortcutPopup.selectedItem?.representedObject as? String {
+            defaults.set(shortcut, forKey: PreferenceKey.manualShortcut)
+        }
 
         if let identifier = englishPopup.selectedItem?.representedObject as? String {
             defaults.set(identifier, forKey: PreferenceKey.englishInputSource)

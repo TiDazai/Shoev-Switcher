@@ -3,7 +3,7 @@ import XCTest
 @testable import ShoevSwitcher
 
 final class SettingsWindowControllerTests: XCTestCase {
-    func testDetailedSettingsBuildsAllThreeSections() {
+    func testDetailedSettingsBuildsAllFourSections() {
         _ = NSApplication.shared
         let controller = SettingsWindowController(
             monitor: KeyboardMonitor(),
@@ -11,8 +11,11 @@ final class SettingsWindowControllerTests: XCTestCase {
             onSaved: {}
         )
         let tabView = controller.window?.contentView.flatMap(findTabView)
-        XCTAssertEqual(tabView?.numberOfTabViewItems, 3)
-        XCTAssertEqual(tabView?.tabViewItems.map(\.label), ["Поведение", "Раскладки", "Дневник и исключения"])
+        XCTAssertEqual(tabView?.numberOfTabViewItems, 4)
+        XCTAssertEqual(
+            tabView?.tabViewItems.map(\.label),
+            ["Поведение", "Интерфейс и обучение", "Раскладки", "Дневник и исключения"]
+        )
     }
 
     private func findTabView(in view: NSView) -> NSTabView? {

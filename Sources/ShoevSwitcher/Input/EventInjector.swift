@@ -19,6 +19,10 @@ final class EventInjector {
         }
     }
 
+    func insert(_ text: String) {
+        postText(text)
+    }
+
     private func postKey(keyCode: CGKeyCode, keyDown: Bool) {
         guard let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: keyDown) else {
             return

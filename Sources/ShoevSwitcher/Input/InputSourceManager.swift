@@ -87,6 +87,28 @@ final class InputSourceManager {
         }
     }
 
+    func convertedText(
+        _ text: String,
+        from sourceLanguage: InputLanguage,
+        to targetLanguage: InputLanguage
+    ) -> String {
+        guard sourceLanguage != targetLanguage else { return text }
+        let from = sourceLanguage == .english ? Self.englishCharacters : Self.russianCharacters
+        let to = targetLanguage == .russian ? Self.russianCharacters : Self.englishCharacters
+        return text.map { character in
+            let lower = Character(String(character).lowercased())
+            guard let index = from.firstIndex(of: lower) else { return String(character) }
+            let offset = from.distance(from: from.startIndex, to: index)
+            guard let targetIndex = to.index(to.startIndex, offsetBy: offset, limitedBy: to.endIndex),
+                  targetIndex < to.endIndex else { return String(character) }
+            let translated = String(to[targetIndex])
+            let original = String(character)
+            return original == original.uppercased() && original != original.lowercased()
+                ? translated.uppercased()
+                : translated
+        }.joined()
+    }
+
     func allSources(for language: InputLanguage) -> [Source] {
         enabledKeyboardSources().filter { $0.primaryLanguage == language }
     }
@@ -182,8 +204,8 @@ final class InputSourceManager {
     }
 
     private func fallbackCharacter(visibleText: String, targetLanguage: InputLanguage) -> String {
-        let english = "`qwertyuiop[]\\asdfghjkl;'zxcvbnm,./"
-        let russian = "ёцукенгшщзхъ\\фывапролджэячсмитьбю."
+        let english = Self.englishCharacters
+        let russian = Self.russianCharacters
         let from = targetLanguage == .russian ? english : russian
         let to = targetLanguage == .russian ? russian : english
         let lowercased = visibleText.lowercased()
@@ -208,4 +230,7 @@ final class InputSourceManager {
         }
         return translated.uppercased()
     }
+
+    private static let englishCharacters = "`qwertyuiop[]\\asdfghjkl;'zxcvbnm,./"
+    private static let russianCharacters = "ёйцукенгшщзхъ\\фывапролджэячсмитьбю."
 }

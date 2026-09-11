@@ -2,6 +2,24 @@ import XCTest
 @testable import ShoevSwitcher
 
 final class InputSourceManagerTests: XCTestCase {
+    func testConvertsWholeSelectedTextInBothDirections() {
+        let manager = InputSourceManager()
+        XCTAssertEqual(
+            manager.convertedText("Ghbdtn vbh", from: .english, to: .russian),
+            "Привет мир"
+        )
+        XCTAssertEqual(
+            manager.convertedText("Привет мир", from: .russian, to: .english),
+            "Ghbdtn vbh"
+        )
+    }
+
+    func testSelectionLanguageIsDetectedFromItsLetters() {
+        XCTAssertEqual(TextSelectionConverter.detectedLanguage(in: "ghbdtn"), .english)
+        XCTAssertEqual(TextSelectionConverter.detectedLanguage(in: "привет"), .russian)
+        XCTAssertNil(TextSelectionConverter.detectedLanguage(in: "123 — !"))
+    }
+
     func testWrongLayoutSequencePreservesRussianLetterOnCommaKey() throws {
         let manager = InputSourceManager()
         guard manager.russianSource != nil else {

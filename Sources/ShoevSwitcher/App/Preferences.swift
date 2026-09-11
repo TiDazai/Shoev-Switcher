@@ -4,7 +4,11 @@ enum PreferenceKey {
     static let enabled = "enabled"
     static let automaticCorrection = "automaticCorrection"
     static let manualConversion = "manualConversion"
+    static let manualShortcut = "manualShortcut"
     static let phraseContext = "phraseContext"
+    static let applicationContext = "applicationContext"
+    static let rememberApplicationLayout = "rememberApplicationLayout"
+    static let correctionNotifications = "correctionNotifications"
     static let automaticLearning = "automaticLearning"
     static let undoAutomaticCorrection = "undoAutomaticCorrection"
     static let rememberUndoneCorrections = "rememberUndoneCorrections"
@@ -22,7 +26,11 @@ enum Preferences {
             PreferenceKey.enabled: true,
             PreferenceKey.automaticCorrection: true,
             PreferenceKey.manualConversion: true,
+            PreferenceKey.manualShortcut: ManualShortcut.rightShift.rawValue,
             PreferenceKey.phraseContext: true,
+            PreferenceKey.applicationContext: true,
+            PreferenceKey.rememberApplicationLayout: false,
+            PreferenceKey.correctionNotifications: true,
             PreferenceKey.automaticLearning: true,
             PreferenceKey.undoAutomaticCorrection: true,
             PreferenceKey.rememberUndoneCorrections: true,
