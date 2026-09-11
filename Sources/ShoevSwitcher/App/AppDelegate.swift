@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController?
     private var settingsWindowController: SettingsWindowController?
     private var journalWindowController: JournalWindowController?
+    private var hoverIndicator: TextInputHoverIndicator?
     private var permissionTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -30,11 +31,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inputEngine = engine
         keyboardMonitor.delegate = engine
 
+        let hoverIndicator = TextInputHoverIndicator(sourceManager: sourceManager)
+        self.hoverIndicator = hoverIndicator
+        keyboardMonitor.mouseMovedHandler = { [weak hoverIndicator] point in
+            hoverIndicator?.mouseMoved(to: point)
+        }
+
         menuBarController = MenuBarController(
             monitor: keyboardMonitor,
             sourceManager: sourceManager,
             openSettings: { [weak self] in self?.showSettings() },
-            openJournal: { [weak self] in self?.showJournal() }
+            openJournal: { [weak self] in self?.showJournal() },
+            hoverIndicatorChanged: { [weak self] in self?.hoverIndicator?.preferenceDidChange() }
         )
 
         if !keyboardMonitor.start() {
@@ -47,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         permissionTimer?.invalidate()
+        hoverIndicator?.stop()
         keyboardMonitor.stop()
     }
 
@@ -72,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onSaved: { [weak self] in
                     self?.sourceManager.reloadSources()
                     self?.menuBarController?.refresh()
+                    self?.hoverIndicator?.preferenceDidChange()
                     if self?.keyboardMonitor.start() != true {
                         self?.keyboardMonitor.requestRequiredPermissions()
                         self?.startPermissionWatcher()

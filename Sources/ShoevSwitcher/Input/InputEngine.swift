@@ -81,7 +81,9 @@ final class InputEngine: KeyboardMonitorDelegate {
         }
 
         if keyCode == 51 {
-            if current.isEmpty, undoLastAutomaticCorrection(application: application) {
+            if defaults.bool(forKey: PreferenceKey.undoAutomaticCorrection),
+               current.isEmpty,
+               undoLastAutomaticCorrection(application: application) {
                 return true
             }
             current.removeLast()
@@ -122,7 +124,7 @@ final class InputEngine: KeyboardMonitorDelegate {
     }
 
     func keyboardMonitor(_ monitor: KeyboardMonitor, flagsChanged event: CGEvent, keyCode: CGKeyCode) {
-        guard keyCode == 60 else { return }
+        guard defaults.bool(forKey: PreferenceKey.manualConversion), keyCode == 60 else { return }
         let isDown = event.flags.contains(.maskShift)
         if isDown {
             rightShiftWasDown = true
@@ -168,10 +170,9 @@ final class InputEngine: KeyboardMonitorDelegate {
                 alternative: alternative,
                 sourceLanguage: sourceLanguage,
                 applicationBundleIdentifier: application?.bundleIdentifier,
-                context: DetectionContext(
-                    recentLanguages: recentLanguages,
-                    recentTokens: recentTokens
-                )
+                context: defaults.bool(forKey: PreferenceKey.phraseContext)
+                    ? DetectionContext(recentLanguages: recentLanguages, recentTokens: recentTokens)
+                    : DetectionContext()
             )
             : DetectionEvaluation(decision: .keep, likelyLanguage: sourceLanguage)
 
@@ -315,7 +316,8 @@ final class InputEngine: KeyboardMonitorDelegate {
 
     private func undoLastAutomaticCorrection(application: NSRunningApplication?) -> Bool {
         let pid = application?.processIdentifier ?? 0
-        guard let completed = lastCompleted,
+        guard defaults.bool(forKey: PreferenceKey.undoAutomaticCorrection),
+              let completed = lastCompleted,
               completed.correctionKind == .correction,
               completed.processIdentifier == pid,
               Date().timeIntervalSince(completed.completedAt) <= 5 else { return false }
@@ -333,12 +335,14 @@ final class InputEngine: KeyboardMonitorDelegate {
             targetLanguage: completed.alternativeLanguage,
             application: application
         )
-        journalStore?.addRule(
-            kind: .keep,
-            pattern: completed.alternativeText,
-            language: completed.alternativeLanguage
-        ) { [weak self] in
-            self?.reloadRules()
+        if defaults.bool(forKey: PreferenceKey.rememberUndoneCorrections) {
+            journalStore?.addRule(
+                kind: .keep,
+                pattern: completed.alternativeText,
+                language: completed.alternativeLanguage
+            ) { [weak self] in
+                self?.reloadRules()
+            }
         }
         lastCompleted = nil
         if !recentLanguages.isEmpty { recentLanguages.removeLast() }
@@ -357,6 +361,7 @@ final class InputEngine: KeyboardMonitorDelegate {
         sourceLanguage: InputLanguage,
         targetLanguage: InputLanguage
     ) {
+        guard defaults.bool(forKey: PreferenceKey.automaticLearning) else { return }
         journalStore?.recordManualConversion(
             original: candidateOriginal,
             replacement: replacement,
