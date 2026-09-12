@@ -123,7 +123,7 @@ final class SettingsWindowController: NSWindowController {
             option(learningCheckbox, "После двух одинаковых ручных исправлений создать личное правило."),
             option(undoCheckbox, "Вернуть ошибочно исправленное слово сразу после замены."),
             option(rememberUndoCheckbox, "Автоматически добавить правило «никогда не менять» после отмены."),
-            option(hoverIndicatorCheckbox, "Показывать 🇷🇺 или 🇬🇧 только над доступным полем ввода."),
+            option(hoverIndicatorCheckbox, "Показывать 🇷🇺 или 🇬🇧 рядом с указателем над доступным полем ввода."),
             option(correctionNotificationsCheckbox, "На секунду показывать «было → стало» рядом с кареткой.")
         ])
         return item

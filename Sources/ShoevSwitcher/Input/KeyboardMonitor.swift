@@ -39,6 +39,9 @@ final class KeyboardMonitor {
             .keyDown,
             .flagsChanged,
             .mouseMoved,
+            .leftMouseDragged,
+            .rightMouseDragged,
+            .otherMouseDragged,
             .leftMouseDown,
             .rightMouseDown,
             .otherMouseDown
@@ -93,9 +96,10 @@ final class KeyboardMonitor {
         }
 
         switch type {
-        case .mouseMoved:
+        case .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
             mouseMovedHandler?(event.location)
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            mouseMovedHandler?(event.location)
             delegate?.keyboardMonitorDidResetInput(self)
             inputActivityHandler?()
         case .flagsChanged:

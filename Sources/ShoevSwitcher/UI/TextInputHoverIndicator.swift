@@ -6,14 +6,12 @@ final class TextInputHoverIndicator {
     private let sourceManager: InputSourceManager
     private let defaults: UserDefaults
     private let systemWideElement = AXUIElementCreateSystemWide()
-    private let caretLocator = AccessibilityCaretLocator()
     private let panel: NSPanel
     private let flagLabel = NSTextField(labelWithString: "")
 
     private var pendingEvaluation: DispatchWorkItem?
     private var latestQuartzPoint = CGPoint.zero
     private var lastEvaluation = Date.distantPast
-    private var hideWork: DispatchWorkItem?
 
     init(sourceManager: InputSourceManager, defaults: UserDefaults = .standard) {
         self.sourceManager = sourceManager
@@ -29,6 +27,9 @@ final class TextInputHoverIndicator {
 
     func mouseMoved(to quartzPoint: CGPoint) {
         latestQuartzPoint = quartzPoint
+        if panel.isVisible {
+            positionPanel(near: NSEvent.mouseLocation)
+        }
         let elapsed = Date().timeIntervalSince(lastEvaluation)
         if elapsed >= evaluationInterval {
             pendingEvaluation?.cancel()
@@ -47,17 +48,11 @@ final class TextInputHoverIndicator {
     }
 
     func inputActivityOccurred() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
-            guard let self else { return }
-            guard self.defaults.bool(forKey: PreferenceKey.enabled),
-                  self.defaults.bool(forKey: PreferenceKey.hoverLanguageIndicator),
-                  let language = self.sourceManager.currentLanguage(),
-                  let caret = self.caretLocator.caretLocation() else {
-                self.hide()
-                return
-            }
-            self.show(language: language, near: caret)
-        }
+        guard panel.isVisible,
+              defaults.bool(forKey: PreferenceKey.enabled),
+              defaults.bool(forKey: PreferenceKey.hoverLanguageIndicator),
+              let language = sourceManager.currentLanguage() else { return }
+        show(language: language, near: NSEvent.mouseLocation)
     }
 
     func preferenceDidChange() {
@@ -82,13 +77,12 @@ final class TextInputHoverIndicator {
               let processIdentifier = processIdentifier(of: element),
               !isExcluded(processIdentifier: processIdentifier),
               isEditableTextElement(element),
-              let language = sourceManager.currentLanguage(),
-              let caret = caretLocator.caretLocation() else {
+              let language = sourceManager.currentLanguage() else {
             hide()
             return
         }
 
-        show(language: language, near: caret)
+        show(language: language, near: NSEvent.mouseLocation)
     }
 
     private func element(at point: CGPoint) -> AXUIElement? {
@@ -187,10 +181,10 @@ final class TextInputHoverIndicator {
         panel.contentView = content
     }
 
-    private func positionPanel(near caretLocation: NSPoint) {
+    private func positionPanel(near mouseLocation: NSPoint) {
         let size = panel.frame.size
-        var origin = NSPoint(x: caretLocation.x + 3, y: caretLocation.y + 2)
-        let screen = NSScreen.screens.first { $0.frame.contains(caretLocation) } ?? NSScreen.main
+        var origin = NSPoint(x: mouseLocation.x + 7, y: mouseLocation.y - size.height - 3)
+        let screen = NSScreen.screens.first { $0.frame.contains(mouseLocation) } ?? NSScreen.main
         if let visibleFrame = screen?.visibleFrame {
             origin.x = min(max(origin.x, visibleFrame.minX), visibleFrame.maxX - size.width)
             origin.y = min(max(origin.y, visibleFrame.minY), visibleFrame.maxY - size.height)
@@ -199,8 +193,6 @@ final class TextInputHoverIndicator {
     }
 
     private func hide() {
-        hideWork?.cancel()
-        hideWork = nil
         panel.orderOut(nil)
     }
 
@@ -208,13 +200,9 @@ final class TextInputHoverIndicator {
         flagLabel.stringValue = language.flag
         positionPanel(near: point)
         panel.orderFrontRegardless()
-        hideWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.panel.orderOut(nil) }
-        hideWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
-    private let evaluationInterval: TimeInterval = 0.10
+    private let evaluationInterval: TimeInterval = 0.06
 }
 
 enum TextInputAccessibilityTraits {
