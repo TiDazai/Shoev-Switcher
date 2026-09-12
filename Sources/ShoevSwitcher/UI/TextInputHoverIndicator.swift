@@ -14,7 +14,6 @@ final class TextInputHoverIndicator {
     private var latestQuartzPoint = CGPoint.zero
     private var lastEvaluation = Date.distantPast
     private var hideWork: DispatchWorkItem?
-    private var positionedAtCaret = false
 
     init(sourceManager: InputSourceManager, defaults: UserDefaults = .standard) {
         self.sourceManager = sourceManager
@@ -30,9 +29,6 @@ final class TextInputHoverIndicator {
 
     func mouseMoved(to quartzPoint: CGPoint) {
         latestQuartzPoint = quartzPoint
-        if panel.isVisible, !positionedAtCaret {
-            positionPanel(near: NSEvent.mouseLocation)
-        }
         let elapsed = Date().timeIntervalSince(lastEvaluation)
         if elapsed >= evaluationInterval {
             pendingEvaluation?.cancel()
@@ -52,12 +48,15 @@ final class TextInputHoverIndicator {
 
     func inputActivityOccurred() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
-            guard let self,
-                  self.defaults.bool(forKey: PreferenceKey.enabled),
+            guard let self else { return }
+            guard self.defaults.bool(forKey: PreferenceKey.enabled),
                   self.defaults.bool(forKey: PreferenceKey.hoverLanguageIndicator),
                   let language = self.sourceManager.currentLanguage(),
-                  let caret = self.caretLocator.caretLocation() else { return }
-            self.show(language: language, near: caret, atCaret: true)
+                  let caret = self.caretLocator.caretLocation() else {
+                self.hide()
+                return
+            }
+            self.show(language: language, near: caret)
         }
     }
 
@@ -83,17 +82,13 @@ final class TextInputHoverIndicator {
               let processIdentifier = processIdentifier(of: element),
               !isExcluded(processIdentifier: processIdentifier),
               isEditableTextElement(element),
-              let language = sourceManager.currentLanguage() else {
+              let language = sourceManager.currentLanguage(),
+              let caret = caretLocator.caretLocation() else {
             hide()
             return
         }
 
-        let caret = caretLocator.caretLocation()
-        show(
-            language: language,
-            near: caret ?? NSEvent.mouseLocation,
-            atCaret: caret != nil
-        )
+        show(language: language, near: caret)
     }
 
     private func element(at point: CGPoint) -> AXUIElement? {
@@ -192,10 +187,10 @@ final class TextInputHoverIndicator {
         panel.contentView = content
     }
 
-    private func positionPanel(near mouseLocation: NSPoint) {
+    private func positionPanel(near caretLocation: NSPoint) {
         let size = panel.frame.size
-        var origin = NSPoint(x: mouseLocation.x + 9, y: mouseLocation.y - 13)
-        let screen = NSScreen.screens.first { $0.frame.contains(mouseLocation) } ?? NSScreen.main
+        var origin = NSPoint(x: caretLocation.x + 3, y: caretLocation.y + 2)
+        let screen = NSScreen.screens.first { $0.frame.contains(caretLocation) } ?? NSScreen.main
         if let visibleFrame = screen?.visibleFrame {
             origin.x = min(max(origin.x, visibleFrame.minX), visibleFrame.maxX - size.width)
             origin.y = min(max(origin.y, visibleFrame.minY), visibleFrame.maxY - size.height)
@@ -209,8 +204,7 @@ final class TextInputHoverIndicator {
         panel.orderOut(nil)
     }
 
-    private func show(language: InputLanguage, near point: NSPoint, atCaret: Bool) {
-        positionedAtCaret = atCaret
+    private func show(language: InputLanguage, near point: NSPoint) {
         flagLabel.stringValue = language.flag
         positionPanel(near: point)
         panel.orderFrontRegardless()

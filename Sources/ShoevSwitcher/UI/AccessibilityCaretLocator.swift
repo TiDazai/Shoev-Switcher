@@ -14,16 +14,27 @@ final class AccessibilityCaretLocator {
             &rangeValue
         ) == .success, let rangeValue else { return nil }
 
+        let selectedRangeValue = unsafeBitCast(rangeValue, to: AXValue.self)
+        var selectedRange = CFRange()
+        guard AXValueGetValue(selectedRangeValue, .cfRange, &selectedRange),
+              selectedRange.location != kCFNotFound,
+              selectedRange.length >= 0 else { return nil }
+
+        var caretRange = CFRange(location: selectedRange.location + selectedRange.length, length: 0)
+        guard let caretRangeValue = AXValueCreate(.cfRange, &caretRange) else { return nil }
         var boundsValue: CFTypeRef?
         guard AXUIElementCopyParameterizedAttributeValue(
             element,
             kAXBoundsForRangeParameterizedAttribute as CFString,
-            rangeValue,
+            caretRangeValue,
             &boundsValue
         ) == .success, let boundsValue else { return nil }
         let axValue = unsafeBitCast(boundsValue, to: AXValue.self)
         var rect = CGRect.zero
-        guard AXValueGetValue(axValue, .cgRect, &rect) else { return nil }
+        guard AXValueGetValue(axValue, .cgRect, &rect),
+              rect.height > 0,
+              rect.origin.x.isFinite,
+              rect.origin.y.isFinite else { return nil }
         return appKitPoint(fromQuartz: CGPoint(x: rect.maxX, y: rect.maxY))
     }
 
@@ -73,17 +84,15 @@ final class AccessibilityCaretLocator {
     }
 
     private func appKitPoint(fromQuartz point: CGPoint) -> NSPoint? {
-        for screen in NSScreen.screens {
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-                continue
-            }
-            let quartzFrame = CGDisplayBounds(CGDirectDisplayID(number.uint32Value))
-            guard quartzFrame.contains(point) else { continue }
-            return NSPoint(
-                x: screen.frame.minX + point.x - quartzFrame.minX,
-                y: screen.frame.maxY - (point.y - quartzFrame.minY)
-            )
+        guard let primaryScreenMaxY = NSScreen.screens.first?.frame.maxY else { return nil }
+        let converted = Self.appKitPoint(fromQuartz: point, primaryScreenMaxY: primaryScreenMaxY)
+        guard NSScreen.screens.contains(where: { $0.frame.insetBy(dx: -1, dy: -1).contains(converted) }) else {
+            return nil
         }
-        return nil
+        return converted
+    }
+
+    static func appKitPoint(fromQuartz point: CGPoint, primaryScreenMaxY: CGFloat) -> NSPoint {
+        NSPoint(x: point.x, y: primaryScreenMaxY - point.y)
     }
 }
