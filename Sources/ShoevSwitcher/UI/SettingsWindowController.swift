@@ -13,7 +13,6 @@ final class SettingsWindowController: NSWindowController {
     private let layoutMemoryCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let learningCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let undoCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
-    private let rememberUndoCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let hoverIndicatorCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let correctionNotificationsCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let journalCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -63,7 +62,6 @@ final class SettingsWindowController: NSWindowController {
         configureCheckbox(layoutMemoryCheckbox, title: "Запоминать и восстанавливать раскладку приложений")
         configureCheckbox(learningCheckbox, title: "Обучаться после повторных ручных исправлений")
         configureCheckbox(undoCheckbox, title: "Отменять автоисправление клавишей Backspace")
-        configureCheckbox(rememberUndoCheckbox, title: "Запоминать отменённое исправление как исключение")
         configureCheckbox(hoverIndicatorCheckbox, title: "Показывать флаг раскладки рядом с курсором")
         configureCheckbox(correctionNotificationsCheckbox, title: "Показывать короткое уведомление об исправлении")
         configureCheckbox(journalCheckbox, title: "Сохранять журнал исправлений")
@@ -122,7 +120,6 @@ final class SettingsWindowController: NSWindowController {
         item.view = tabContent([
             option(learningCheckbox, "После двух одинаковых ручных исправлений создать личное правило."),
             option(undoCheckbox, "Вернуть ошибочно исправленное слово сразу после замены."),
-            option(rememberUndoCheckbox, "Автоматически добавить правило «никогда не менять» после отмены."),
             option(hoverIndicatorCheckbox, "Показывать 🇷🇺 или 🇬🇧 рядом с указателем над доступным полем ввода."),
             option(correctionNotificationsCheckbox, "На секунду показывать «было → стало» рядом с кареткой.")
         ])
@@ -261,7 +258,6 @@ final class SettingsWindowController: NSWindowController {
         set(layoutMemoryCheckbox, from: PreferenceKey.rememberApplicationLayout, defaults: defaults)
         set(learningCheckbox, from: PreferenceKey.automaticLearning, defaults: defaults)
         set(undoCheckbox, from: PreferenceKey.undoAutomaticCorrection, defaults: defaults)
-        set(rememberUndoCheckbox, from: PreferenceKey.rememberUndoneCorrections, defaults: defaults)
         set(hoverIndicatorCheckbox, from: PreferenceKey.hoverLanguageIndicator, defaults: defaults)
         set(correctionNotificationsCheckbox, from: PreferenceKey.correctionNotifications, defaults: defaults)
         set(journalCheckbox, from: PreferenceKey.journalEnabled, defaults: defaults)
@@ -305,7 +301,6 @@ final class SettingsWindowController: NSWindowController {
         phraseContextCheckbox.isEnabled = automaticCheckbox.state == .on
         applicationContextCheckbox.isEnabled = automaticCheckbox.state == .on
         undoCheckbox.isEnabled = automaticCheckbox.state == .on
-        rememberUndoCheckbox.isEnabled = undoCheckbox.isEnabled && undoCheckbox.state == .on
         learningCheckbox.isEnabled = manualCheckbox.state == .on
         fullDiaryCheckbox.isEnabled = journalCheckbox.state == .on
     }
@@ -326,7 +321,6 @@ final class SettingsWindowController: NSWindowController {
         savePreference(layoutMemoryCheckbox, to: PreferenceKey.rememberApplicationLayout, defaults: defaults)
         savePreference(learningCheckbox, to: PreferenceKey.automaticLearning, defaults: defaults)
         savePreference(undoCheckbox, to: PreferenceKey.undoAutomaticCorrection, defaults: defaults)
-        savePreference(rememberUndoCheckbox, to: PreferenceKey.rememberUndoneCorrections, defaults: defaults)
         savePreference(hoverIndicatorCheckbox, to: PreferenceKey.hoverLanguageIndicator, defaults: defaults)
         savePreference(correctionNotificationsCheckbox, to: PreferenceKey.correctionNotifications, defaults: defaults)
         savePreference(journalCheckbox, to: PreferenceKey.journalEnabled, defaults: defaults)

@@ -394,15 +394,6 @@ final class InputEngine: KeyboardMonitorDelegate {
             targetLanguage: completed.alternativeLanguage,
             application: application
         )
-        if defaults.bool(forKey: PreferenceKey.rememberUndoneCorrections) {
-            journalStore?.addRule(
-                kind: .keep,
-                pattern: completed.alternativeText,
-                language: completed.alternativeLanguage
-            ) { [weak self] in
-                self?.reloadRules()
-            }
-        }
         lastCompleted = nil
         if !recentLanguages.isEmpty { recentLanguages.removeLast() }
         if !recentTokens.isEmpty { recentTokens.removeLast() }

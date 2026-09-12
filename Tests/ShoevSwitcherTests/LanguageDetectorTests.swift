@@ -28,6 +28,26 @@ final class LanguageDetectorTests: XCTestCase {
         )
     }
 
+    func testEmbeddedLexiconConvertsCommonWrongLayoutWord() {
+        let detector = LanguageDetector(rules: RuleStore())
+        for (original, alternative) in [("ghbdtn", "привет"), ("Ghbdtn", "Привет")] {
+            XCTAssertEqual(
+                detector.decision(
+                    original: original,
+                    alternative: alternative,
+                    sourceLanguage: .english,
+                    applicationBundleIdentifier: nil
+                ),
+                .convert(ConversionCandidate(
+                    original: original,
+                    replacement: alternative,
+                    sourceLanguage: .english,
+                    targetLanguage: .russian
+                ))
+            )
+        }
+    }
+
     func testKeepsKnownOriginal() {
         let rules = RuleStore()
         let detector = LanguageDetector(rules: rules) { word, language in

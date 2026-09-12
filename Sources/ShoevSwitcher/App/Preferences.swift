@@ -11,7 +11,6 @@ enum PreferenceKey {
     static let correctionNotifications = "correctionNotifications"
     static let automaticLearning = "automaticLearning"
     static let undoAutomaticCorrection = "undoAutomaticCorrection"
-    static let rememberUndoneCorrections = "rememberUndoneCorrections"
     static let journalEnabled = "journalEnabled"
     static let fullDiaryEnabled = "fullDiaryEnabled"
     static let hoverLanguageIndicator = "hoverLanguageIndicator"
@@ -33,7 +32,6 @@ enum Preferences {
             PreferenceKey.correctionNotifications: true,
             PreferenceKey.automaticLearning: true,
             PreferenceKey.undoAutomaticCorrection: true,
-            PreferenceKey.rememberUndoneCorrections: true,
             PreferenceKey.journalEnabled: true,
             PreferenceKey.fullDiaryEnabled: false,
             PreferenceKey.hoverLanguageIndicator: true,
