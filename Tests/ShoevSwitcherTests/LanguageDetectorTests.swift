@@ -48,6 +48,74 @@ final class LanguageDetectorTests: XCTestCase {
         }
     }
 
+    func testConvertsShortEnglishWordsTypedOnRussianLayout() {
+        let detector = LanguageDetector(rules: RuleStore())
+        for (original, alternative) in [("пфн", "gay"), ("пгн", "guy")] {
+            let expected = DetectionDecision.convert(ConversionCandidate(
+                original: original,
+                replacement: alternative,
+                sourceLanguage: .russian,
+                targetLanguage: .english
+            ))
+            XCTAssertEqual(
+                detector.evaluate(
+                    original: original,
+                    alternative: alternative,
+                    sourceLanguage: .russian,
+                    applicationBundleIdentifier: nil,
+                    context: DetectionContext()
+                ).decision,
+                expected,
+                "scores: original=\(String(describing: EmbeddedLexicon.shared.score(for: original, language: .russian))) alternative=\(String(describing: EmbeddedLexicon.shared.score(for: alternative, language: .english)))"
+            )
+            XCTAssertEqual(
+                detector.evaluate(
+                    original: original,
+                    alternative: alternative,
+                    sourceLanguage: .russian,
+                    applicationBundleIdentifier: nil,
+                    context: DetectionContext(
+                        recentLanguages: [.russian, .russian, .russian, .russian, .russian],
+                        applicationLanguage: .russian
+                    )
+                ).decision,
+                expected,
+                "scores: original=\(String(describing: EmbeddedLexicon.shared.score(for: original, language: .russian))) alternative=\(String(describing: EmbeddedLexicon.shared.score(for: alternative, language: .english)))"
+            )
+        }
+    }
+
+    func testUnambiguousShortPairsSurviveMisleadingScoresAndRussianContext() {
+        let detector = LanguageDetector(
+            rules: RuleStore(),
+            wordScorer: { word, language in
+                if language == .russian, ["пфн", "пгн"].contains(word) { return 20 }
+                if language == .english, ["gay", "guy"].contains(word) { return 1 }
+                return nil
+            }
+        )
+        for (original, alternative) in [("пфн", "gay"), ("пгн", "guy")] {
+            XCTAssertEqual(
+                detector.evaluate(
+                    original: original,
+                    alternative: alternative,
+                    sourceLanguage: .russian,
+                    applicationBundleIdentifier: nil,
+                    context: DetectionContext(
+                        recentLanguages: [.russian, .russian, .russian],
+                        applicationLanguage: .russian
+                    )
+                ).decision,
+                .convert(ConversionCandidate(
+                    original: original,
+                    replacement: alternative,
+                    sourceLanguage: .russian,
+                    targetLanguage: .english
+                ))
+            )
+        }
+    }
+
     func testKeepsKnownOriginal() {
         let rules = RuleStore()
         let detector = LanguageDetector(rules: rules) { word, language in

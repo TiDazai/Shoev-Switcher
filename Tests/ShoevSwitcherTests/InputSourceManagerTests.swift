@@ -56,4 +56,23 @@ final class InputSourceManagerTests: XCTestCase {
         ]
         XCTAssertEqual(manager.text(for: strokes, in: .russian), "Привет")
     }
+
+    func testPhysicalRussianKeySequencesTranslateToShortEnglishWords() throws {
+        let manager = InputSourceManager()
+        guard manager.englishSource != nil else {
+            throw XCTSkip("English input source is not enabled on this Mac")
+        }
+        let gay = [
+            KeyStroke(keyCode: 5, visibleText: "п"),
+            KeyStroke(keyCode: 0, visibleText: "ф"),
+            KeyStroke(keyCode: 16, visibleText: "н")
+        ]
+        let guy = [
+            KeyStroke(keyCode: 5, visibleText: "п"),
+            KeyStroke(keyCode: 32, visibleText: "г"),
+            KeyStroke(keyCode: 16, visibleText: "н")
+        ]
+        XCTAssertEqual(manager.text(for: gay, in: .english), "gay")
+        XCTAssertEqual(manager.text(for: guy, in: .english), "guy")
+    }
 }

@@ -84,6 +84,22 @@ final class LanguageDetector {
             return DetectionEvaluation(decision: ruleDecision, likelyLanguage: likelyLanguage)
         }
 
+        if isUnambiguousShortLayoutPair(
+            original: original,
+            alternative: alternative,
+            sourceLanguage: sourceLanguage
+        ) {
+            return DetectionEvaluation(
+                decision: .convert(ConversionCandidate(
+                    original: original,
+                    replacement: alternative,
+                    sourceLanguage: sourceLanguage,
+                    targetLanguage: targetLanguage
+                )),
+                likelyLanguage: targetLanguage
+            )
+        }
+
         guard isEligible(original), isEligible(alternative) else {
             return DetectionEvaluation(decision: .keep, likelyLanguage: sourceLanguage)
         }
@@ -199,6 +215,16 @@ final class LanguageDetector {
         return true
     }
 
+    private func isUnambiguousShortLayoutPair(
+        original: String,
+        alternative: String,
+        sourceLanguage: InputLanguage
+    ) -> Bool {
+        guard sourceLanguage == .russian else { return false }
+        let pair = "\(original.lowercased())\u{0}\(alternative.lowercased())"
+        return Self.unambiguousRussianToEnglishPairs.contains(pair)
+    }
+
     private func requiredMargin(for length: Int, contextSupportsTarget: Bool) -> Double {
         let base: Double
         switch length {
@@ -211,4 +237,8 @@ final class LanguageDetector {
 
     private let unknownWordScore = 2.0
     private let knownOriginalFloor = 3.5
+    private static let unambiguousRussianToEnglishPairs: Set<String> = [
+        "пфн\u{0}gay",
+        "пгн\u{0}guy"
+    ]
 }
