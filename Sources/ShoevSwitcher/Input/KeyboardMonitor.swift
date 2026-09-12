@@ -17,6 +17,7 @@ final class KeyboardMonitor {
     private let logger = Logger(subsystem: "com.shoev.switcher", category: "KeyboardMonitor")
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var healthTimer: Timer?
     private var keyDownCountSinceTerminator = 0
 
     /// The event tap itself is the source of truth. On recent macOS versions the
@@ -67,11 +68,14 @@ final class KeyboardMonitor {
         CGEvent.tapEnable(tap: tap, enable: true)
         eventTap = tap
         runLoopSource = source
+        startHealthTimer()
         logger.info("Keyboard event tap started")
         return true
     }
 
     func stop() {
+        healthTimer?.invalidate()
+        healthTimer = nil
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
@@ -97,17 +101,21 @@ final class KeyboardMonitor {
 
         switch type {
         case .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
-            mouseMovedHandler?(event.location)
+            let location = event.location
+            DispatchQueue.main.async { [weak self] in self?.mouseMovedHandler?(location) }
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
-            mouseMovedHandler?(event.location)
+            let location = event.location
+            DispatchQueue.main.async { [weak self] in
+                self?.mouseMovedHandler?(location)
+                self?.inputActivityHandler?()
+            }
             delegate?.keyboardMonitorDidResetInput(self)
-            inputActivityHandler?()
         case .flagsChanged:
-            inputActivityHandler?()
+            DispatchQueue.main.async { [weak self] in self?.inputActivityHandler?() }
             let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
             delegate?.keyboardMonitor(self, flagsChanged: event, keyCode: keyCode)
         case .keyDown:
-            inputActivityHandler?()
+            DispatchQueue.main.async { [weak self] in self?.inputActivityHandler?() }
             let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
             let text = Self.unicodeString(from: event)
             keyDownCountSinceTerminator += 1
@@ -126,6 +134,16 @@ final class KeyboardMonitor {
             break
         }
         return Unmanaged.passUnretained(event)
+    }
+
+    private func startHealthTimer() {
+        healthTimer?.invalidate()
+        healthTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, let eventTap = self.eventTap,
+                  !CGEvent.tapIsEnabled(tap: eventTap) else { return }
+            self.logger.warning("Keyboard event tap was disabled; enabling it again")
+            CGEvent.tapEnable(tap: eventTap, enable: true)
+        }
     }
 
     private static func unicodeString(from event: CGEvent) -> String {

@@ -95,7 +95,14 @@ final class InputEngine: KeyboardMonitorDelegate {
                undoLastAutomaticCorrection(application: application) {
                 return true
             }
+            if current.isEmpty {
+                lastCompleted = nil
+                recentLanguages.removeAll(keepingCapacity: true)
+                recentTokens.removeAll(keepingCapacity: true)
+                return false
+            }
             current.removeLast()
+            if current.isEmpty { lastCompleted = nil }
             return false
         }
         if navigationKeyCodes.contains(keyCode) {
