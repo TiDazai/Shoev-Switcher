@@ -10,6 +10,8 @@ x86_scratch="$build_root/x86_64"
 
 mkdir -p "$build_root" "$dist_dir"
 
+"$project_dir/scripts/prepare-lexicon.sh"
+
 swift build \
   --package-path "$project_dir" \
   --configuration release \

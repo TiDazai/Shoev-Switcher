@@ -358,6 +358,50 @@ final class LanguageDetectorTests: XCTestCase {
         XCTAssertNotNil(EmbeddedLexicon.shared.score(for: "Сбербанк", language: .russian))
     }
 
+    func testExtendedLexiconContainsNamesSurnamesAndProfanity() {
+        for word in ["Шоев", "Цукерберг", "хуесосами", "пиздануть"] {
+            XCTAssertNotNil(
+                EmbeddedLexicon.shared.score(for: word, language: .russian),
+                "Missing Russian entry: \(word)"
+            )
+        }
+        for word in ["Zuckerberg", "Smithson", "motherfucker", "cockwomble"] {
+            XCTAssertNotNil(
+                EmbeddedLexicon.shared.score(for: word, language: .english),
+                "Missing English entry: \(word)"
+            )
+        }
+    }
+
+    func testExtendedLexiconConvertsRareNamesAndProfanity() {
+        let detector = LanguageDetector(rules: RuleStore())
+        let cases: [(String, String, InputLanguage)] = [
+            ("ijtd", "шоев", .english),
+            ("gbplfyenm", "пиздануть", .english),
+            ("ьщерукагслук", "motherfucker", .russian),
+            ("ягслукиукп", "zuckerberg", .russian),
+        ]
+
+        for (original, alternative, sourceLanguage) in cases {
+            let targetLanguage: InputLanguage = sourceLanguage == .english ? .russian : .english
+            XCTAssertEqual(
+                detector.decision(
+                    original: original,
+                    alternative: alternative,
+                    sourceLanguage: sourceLanguage,
+                    applicationBundleIdentifier: nil
+                ),
+                .convert(ConversionCandidate(
+                    original: original,
+                    replacement: alternative,
+                    sourceLanguage: sourceLanguage,
+                    targetLanguage: targetLanguage
+                )),
+                "Failed to convert \(original) → \(alternative)"
+            )
+        }
+    }
+
     func testExplicitRuleTakesPriority() {
         let rules = RuleStore()
         rules.replaceRules([

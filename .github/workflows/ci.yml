@@ -10,6 +10,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare embedded lexicon
+        run: ./scripts/prepare-lexicon.sh
       - name: Test
         run: swift test
       - name: Build universal application

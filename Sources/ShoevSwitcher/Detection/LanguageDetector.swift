@@ -14,10 +14,12 @@ protocol RuleProviding: AnyObject {
 final class LanguageDetector {
     typealias WordValidator = (_ word: String, _ language: InputLanguage) -> Bool
     typealias WordScorer = (_ word: String, _ language: InputLanguage) -> Double?
+    typealias OriginalProtector = (_ word: String, _ language: InputLanguage) -> Bool
     typealias PhraseScorer = (_ words: [String], _ language: InputLanguage) -> Double
 
     private let rules: RuleProviding
     private let wordScorer: WordScorer
+    private let originalProtector: OriginalProtector
     private let phraseScorer: PhraseScorer
 
     init(rules: RuleProviding, wordValidator: WordValidator? = nil) {
@@ -26,8 +28,10 @@ final class LanguageDetector {
             self.wordScorer = { word, language in
                 wordValidator(word, language) ? 6 : nil
             }
+            self.originalProtector = wordValidator
         } else {
             self.wordScorer = EmbeddedLexicon.shared.score
+            self.originalProtector = EmbeddedLexicon.shared.protectsOriginal
         }
         self.phraseScorer = PhraseLexicon.shared.bonus
     }
@@ -35,10 +39,14 @@ final class LanguageDetector {
     init(
         rules: RuleProviding,
         wordScorer: @escaping WordScorer,
+        originalProtector: OriginalProtector? = nil,
         phraseScorer: @escaping PhraseScorer = PhraseLexicon.shared.bonus
     ) {
         self.rules = rules
         self.wordScorer = wordScorer
+        self.originalProtector = originalProtector ?? { word, language in
+            wordScorer(word, language) != nil
+        }
         self.phraseScorer = phraseScorer
     }
 
@@ -119,7 +127,11 @@ final class LanguageDetector {
 
         // A rare known source token is often a name, brand or technical term.
         // Its presence should protect it from a merely plausible alternative.
-        let originalValue = originalScore.map { max($0, knownOriginalFloor) } ?? unknownWordScore
+        let protectsOriginal = rules.isAccepted(original, language: sourceLanguage)
+            || originalProtector(original, sourceLanguage)
+        let originalValue = originalScore.map {
+            protectsOriginal ? max($0, knownOriginalFloor) : $0
+        } ?? unknownWordScore
         var margin = requiredMargin(
             for: original.count,
             contextSupportsTarget: context.dominantLanguage == targetLanguage
@@ -127,7 +139,7 @@ final class LanguageDetector {
         // Single Latin letters are valid dictionary entries, but that alone must not
         // outweigh a clearly more frequent one-letter word in the other language
         // (for example, English-key `f` is Russian `а`).
-        if originalScore != nil, original.count > 1 {
+        if protectsOriginal, original.count > 1 {
             margin += 0.65
         }
         guard alternativeScore - originalValue >= margin else {
