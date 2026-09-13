@@ -5,6 +5,8 @@ project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 archive="$project_dir/Resources/Lexicon/lexicon.sqlite3.gz"
 destination="$project_dir/Sources/ShoevSwitcher/Resources/lexicon.sqlite3"
 
+mkdir -p "$project_dir/.build"
+
 if [[ ! -f "$archive" ]]; then
   echo "Missing compressed lexicon: $archive" >&2
   exit 1
