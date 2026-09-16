@@ -4,4 +4,6 @@ dist/
 *.xcuserstate
 *.p12
 DerivedData/
+windows/**/bin/
+windows/**/obj/
 Sources/ShoevSwitcher/Resources/lexicon.sqlite3
