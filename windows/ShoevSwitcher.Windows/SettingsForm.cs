@@ -58,8 +58,8 @@ internal sealed class SettingsForm : Form
     }
     private static TabPage AboutTab()
     {
-        var page = Page("О программе"); var stack = Stack(); stack.Controls.Add(Section("Shoev Switcher для Windows"));
-        stack.Controls.Add(Help("Полноценная Windows-версия с тем же словарём на 7,1 млн русских и английских слов, что и версия для macOS.\n\nАвтоматическая и ручная конвертация • смена системной раскладки • локальная обработка.\n\nВерсия 0.5.1-alpha")); page.Controls.Add(stack); return page;
+        var page = Page("О программе"); var stack = Stack(); stack.Controls.Add(Section("Shoev Switcher"));
+        stack.Controls.Add(Help("Shoev Switcher использует общий локальный словарь на 7,1 млн русских и английских слов.\n\nАвтоматическая и ручная конвертация • смена системной раскладки • локальная обработка.\n\nВерсия 0.5.2-alpha")); page.Controls.Add(stack); return page;
     }
     private CheckBox Option(string key, string text)
     {

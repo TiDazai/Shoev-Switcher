@@ -9,6 +9,7 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
         if (args.Contains("--self-test")) return SelfTest.Run();
+        if (args.Contains("--input-self-test")) return InputSelfTest.Run();
         using var mutex = new Mutex(true, "ShoevSwitcher.Windows.SingleInstance", out var created);
         if (!created) return 0;
         Application.Run(new SwitcherApplication(!args.Contains("--background")));
@@ -57,7 +58,7 @@ internal sealed class SwitcherApplication : ApplicationContext
             new ToolStripMenuItem("Настройки…", null, (_, _) => OpenSettings()),
             new ToolStripMenuItem("Дневник и правила…", null, (_, _) => OpenJournal()),
             new ToolStripSeparator(), new ToolStripMenuItem("О Shoev Switcher", null, (_, _) => MessageBox.Show(
-                "Shoev Switcher для Windows\n\nАвтоматически исправляет текст, набранный в неверной русской или английской раскладке.\nВсё работает локально.",
+                "Shoev Switcher\n\nАвтоматически исправляет текст, набранный в неверной русской или английской раскладке.\nВсё работает локально.",
                 "Shoev Switcher", MessageBoxButtons.OK, MessageBoxIcon.Information)),
             new ToolStripMenuItem("Выход", null, (_, _) => ExitThread())]);
         tray = new NotifyIcon { Text = "Shoev Switcher", Icon = appIcon, Visible = true, ContextMenuStrip = menu };

@@ -14,12 +14,14 @@ internal sealed class SwitcherEngine
     private readonly Dictionary<string, (int English, int Russian)> applicationLanguages = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Language> lastApplicationLayout = new(StringComparer.OrdinalIgnoreCase);
     private LastCorrection? lastCorrection;
+    private readonly bool testMode;
     internal event Action<string, string>? Corrected;
     internal event Action<string, Language>? Completed;
-    internal SwitcherEngine(Lexicon lexicon) => this.lexicon = lexicon;
+    internal SwitcherEngine(Lexicon lexicon, bool testMode = false) { this.lexicon = lexicon; this.testMode = testMode; }
 
     internal bool HandleKey(KeyEvent key)
     {
+        if (key.FromShoevSpell) { ObserveExternal(key); return false; }
         var foreground = NativeMethods.GetForegroundWindow();
         var process = NativeMethods.ProcessName();
         if (window != foreground)
@@ -27,8 +29,8 @@ internal sealed class SwitcherEngine
             word = ""; window = foreground;
             if (SettingsStore.GetBool("RememberLayout", false) && lastApplicationLayout.TryGetValue(process, out var remembered)) NativeMethods.SwitchLayout(remembered);
         }
-        if (!SettingsStore.GetBool("Enabled", true) || Excluded.Contains(process)
-            || SettingsStore.GetExclusions().Contains(process, StringComparer.OrdinalIgnoreCase)
+        if (!(testMode || SettingsStore.GetBool("Enabled", true)) || (!testMode && (Excluded.Contains(process)
+            || SettingsStore.GetExclusions().Contains(process, StringComparer.OrdinalIgnoreCase)))
             || NativeMethods.IsPasswordField()) { word = ""; return false; }
 
         var manualKey = SettingsStore.GetString("ManualSide", "Right") == "Left" ? 0xA0u : 0xA1u;
@@ -38,7 +40,8 @@ internal sealed class SwitcherEngine
             if (SettingsStore.GetBool("Manual", true) && word.Length > 0 && now - lastShift < TimeSpan.FromMilliseconds(450))
             {
                 var original = word; var converted = LayoutConverter.Convert(original); var language = LayoutConverter.Detect(converted);
-                NativeMethods.Replace(original.Length, converted, ""); NativeMethods.SwitchLayout(language);
+                if (!NativeMethods.Replace(original.Length, converted, "")) { lastShift = default; return false; }
+                NativeMethods.SwitchLayout(language);
                 if (SettingsStore.GetBool("Learning", true)) PersonalRules.RecordManual(original, converted);
                 RegisterLanguage(language, process); Corrected?.Invoke(original, converted); word = converted; lastShift = default; return false;
             }
@@ -48,7 +51,7 @@ internal sealed class SwitcherEngine
         if (key.VirtualKey == 0x08 && SettingsStore.GetBool("Undo", true) && lastCorrection is { } previous
             && previous.Window == foreground && DateTime.UtcNow - previous.Time < TimeSpan.FromSeconds(5))
         {
-            NativeMethods.Replace(previous.Alternative.Length + previous.Delimiter.Length, previous.Original, previous.Delimiter);
+            if (!NativeMethods.Replace(previous.Alternative.Length + previous.Delimiter.Length, previous.Original, previous.Delimiter)) return false;
             NativeMethods.SwitchLayout(previous.Source); Corrected?.Invoke(previous.Alternative, previous.Original); lastCorrection = null; word = ""; return true;
         }
         if (ResetKeys.Contains(key.VirtualKey)) { word = ""; return false; }
@@ -59,15 +62,30 @@ internal sealed class SwitcherEngine
         word = ""; return false;
     }
 
+    private void ObserveExternal(KeyEvent key)
+    {
+        if (ResetKeys.Contains(key.VirtualKey)) { word = ""; return; }
+        var text = key.Text();
+        if (text.Length == 0) return;
+        if (text.All(char.IsLetter))
+        {
+            word += text;
+            if (word.Length > 64) word = "";
+            return;
+        }
+        if (text is " " or "\r" or "\n" || text.All(c => ",.;:!?…".Contains(c))) { word = ""; return; }
+        word = "";
+    }
+
     private bool Complete(string delimiter)
     {
         if (word.Length == 0) return false;
         var original = word; word = "";
-        if (!SettingsStore.GetBool("Automatic", true)) { var language = LayoutConverter.Detect(original); RegisterLanguage(language, NativeMethods.ProcessName()); Completed?.Invoke(original, language); return false; }
+        if (!(testMode || SettingsStore.GetBool("Automatic", true))) { var language = LayoutConverter.Detect(original); RegisterLanguage(language, NativeMethods.ProcessName()); Completed?.Invoke(original, language); return false; }
         var source = LayoutConverter.Detect(original); var target = source == Language.English ? Language.Russian : Language.English;
         var alternative = LayoutConverter.Convert(original);
         if (!ShouldConvert(original, alternative, source, target, NativeMethods.ProcessName())) { RegisterLanguage(source, NativeMethods.ProcessName()); Completed?.Invoke(original, source); return false; }
-        NativeMethods.Replace(original.Length, alternative, delimiter);
+        if (!NativeMethods.Replace(original.Length, alternative, delimiter)) { RegisterLanguage(source, NativeMethods.ProcessName()); Completed?.Invoke(original, source); return false; }
         NativeMethods.SwitchLayout(target);
         lastCorrection = new LastCorrection(original, alternative, delimiter, source, NativeMethods.GetForegroundWindow(), DateTime.UtcNow);
         RegisterLanguage(target, NativeMethods.ProcessName()); Completed?.Invoke(alternative, target);

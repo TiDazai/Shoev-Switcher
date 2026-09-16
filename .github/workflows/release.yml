@@ -10,6 +10,12 @@ permissions:
 jobs:
   release:
     runs-on: macos-15
+    env:
+      CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+      SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -17,8 +23,8 @@ jobs:
         run: ./scripts/prepare-lexicon.sh
 
       - name: Import Developer ID certificate
+        if: env.CERTIFICATE_BASE64 != ''
         env:
-          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
         run: |
@@ -37,20 +43,14 @@ jobs:
 
       - name: Build and sign
         env:
-          SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: ./scripts/build-app.sh
 
       - name: Create DMG
-        env:
-          SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION }}
         run: ./scripts/create-dmg.sh
 
       - name: Notarize
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        if: env.SIGN_IDENTITY != '' && env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != '' && env.APPLE_TEAM_ID != ''
         run: ./scripts/notarize.sh
 
       - name: Publish GitHub release
@@ -72,11 +72,13 @@ jobs:
       - name: Verify Windows build
         shell: pwsh
         run: |
-          & "dist/windows/Shoev Switcher.exe" --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Windows self-test failed" }
+          $core = Start-Process -FilePath "dist/windows/Shoev Switcher.exe" -ArgumentList "--self-test" -Wait -PassThru
+          if ($core.ExitCode -ne 0) { throw "Core self-test failed" }
+          $input = Start-Process -FilePath "dist/windows/Shoev Switcher.exe" -ArgumentList "--input-self-test" -Wait -PassThru
+          if ($input.ExitCode -ne 0) { throw "Input self-test failed" }
       - name: Create Windows archive
         shell: pwsh
-        run: Compress-Archive -Path dist/windows/* -DestinationPath dist/Shoev-Switcher-Windows-x64.zip
+        run: Compress-Archive -Path dist/windows/* -DestinationPath dist/Shoev-Switcher-x64.zip
       - name: Attach Windows build to release
         shell: pwsh
         env:
@@ -84,4 +86,4 @@ jobs:
         run: |
           gh release view $env:GITHUB_REF_NAME 2>$null
           if ($LASTEXITCODE -ne 0) { gh release create $env:GITHUB_REF_NAME --generate-notes }
-          gh release upload $env:GITHUB_REF_NAME dist/Shoev-Switcher-Windows-x64.zip --clobber
+          gh release upload $env:GITHUB_REF_NAME dist/Shoev-Switcher-x64.zip --clobber

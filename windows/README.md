@@ -1,6 +1,6 @@
-# Shoev Switcher для Windows
+# Shoev Switcher: реализация в `windows/`
 
-Windows-версия использует локальный словарь на 7,1 млн русских и английских слов
+Это платформенная реализация общего Shoev Switcher. Она использует общий локальный словарь на 7,1 млн русских и английских слов, фирменную иконку и общий цикл версий и релизов.
 
 ## Возможности
 
@@ -31,4 +31,4 @@ dotnet run --project ShoevSwitcher.Windows/ShoevSwitcher.Windows.csproj -c Relea
 dotnet publish ShoevSwitcher.Windows/ShoevSwitcher.Windows.csproj -c Release -r win-x64 --self-contained true
 ```
 
-При отправке тега `v*` GitHub Actions собирает `Shoev-Switcher-Windows-x64.zip` и прикладывает его к тому же релизу, что и macOS DMG.
+При отправке тега `v*` GitHub Actions собирает `Shoev-Switcher-x64.zip` и прикладывает его к общему релизу вместе с DMG.

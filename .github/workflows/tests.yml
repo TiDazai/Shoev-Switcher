@@ -27,4 +27,6 @@ jobs:
         shell: pwsh
         run: |
           dotnet run --project windows/ShoevSwitcher.Windows/ShoevSwitcher.Windows.csproj -c Release --no-build -p:SelfContained=false -- --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Windows self-test failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Core self-test failed" }
+          dotnet run --project windows/ShoevSwitcher.Windows/ShoevSwitcher.Windows.csproj -c Release --no-build -p:SelfContained=false -- --input-self-test
+          if ($LASTEXITCODE -ne 0) { throw "Input self-test failed" }
