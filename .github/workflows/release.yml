@@ -56,4 +56,32 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "dist/Shoev-Switcher.dmg" --generate-notes
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes || gh release view "$GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" "dist/Shoev-Switcher.dmg" --clobber
+
+  windows-release:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Publish Windows x64 build
+        run: dotnet publish windows/ShoevSwitcher.Windows/ShoevSwitcher.Windows.csproj -c Release -r win-x64 --self-contained true -o dist/windows
+      - name: Verify Windows build
+        shell: pwsh
+        run: |
+          & "dist/windows/Shoev Switcher.exe" --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows self-test failed" }
+      - name: Create Windows archive
+        shell: pwsh
+        run: Compress-Archive -Path dist/windows/* -DestinationPath dist/Shoev-Switcher-Windows-x64.zip
+      - name: Attach Windows build to release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:GITHUB_REF_NAME 2>$null
+          if ($LASTEXITCODE -ne 0) { gh release create $env:GITHUB_REF_NAME --generate-notes }
+          gh release upload $env:GITHUB_REF_NAME dist/Shoev-Switcher-Windows-x64.zip --clobber

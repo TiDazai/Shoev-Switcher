@@ -4,13 +4,21 @@
 
 # Shoev Switcher
 
-Нативный автоматический переключатель русской и английской раскладок для macOS.
+Нативный автоматический переключатель русской и английской раскладок для macOS и Windows.
 
 Shoev Switcher работает локально, живёт в строке меню и исправляет текст после
 пробела или знака препинания. Настраиваемое двойное нажатие Shift принудительно
 конвертирует выделенный текст, текущее или последнее слово.
 
 ## Скачать
+
+### Windows
+
+[Откройте Releases](https://github.com/TiDazai/Shoev-Switcher/releases), скачайте `Shoev-Switcher-Windows-x64.zip`, распакуйте архив и запустите `Shoev Switcher.exe`. Программа появится в области уведомлений; установка .NET не требуется.
+
+Поддерживаются Windows 10 и 11 x64. Автоматическое исправление срабатывает после пробела или знака препинания, ручная конвертация текущего слова — по двойному правому Shift. Подробности находятся в [`windows/README.md`](windows/README.md).
+
+### macOS
 
 [Скачать Shoev Switcher для macOS](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.5.0-alpha/Shoev-Switcher.dmg)
 
@@ -51,13 +59,21 @@ Shoev Switcher работает локально, живёт в строке м�
 
 ## Системные требования
 
-- macOS 13 или новее;
-- включённые источники ввода English и Русский;
-- разрешения Input Monitoring и Accessibility.
+- macOS 13 или новее либо Windows 10/11 x64;
+- включённые раскладки English и Русский;
+- на macOS — разрешения Input Monitoring и Accessibility.
 
 Shoev Switcher не обрабатывает ввод, пока включён Secure Event Input, а также в полях, которые macOS помечает как защищённые. Терминалы, IDE и менеджеры паролей рекомендуется оставлять в исключениях как дополнительную меру.
 
 ## Сборка из исходников
+
+Windows:
+
+```powershell
+dotnet publish windows/ShoevSwitcher.Windows/ShoevSwitcher.Windows.csproj -c Release -r win-x64 --self-contained true
+```
+
+macOS:
 
 Откройте `Package.swift` в Xcode или используйте терминал:
 
