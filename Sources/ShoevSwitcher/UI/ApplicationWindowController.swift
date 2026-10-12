@@ -392,7 +392,7 @@ private struct LegacyPane: NSViewRepresentable {
 }
 private extension View {
     func card() -> some View {
-        self.padding(20).background(Brand.panel)
+        self.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(Brand.panel)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Brand.gold.opacity(0.12), lineWidth: 1))
     }
