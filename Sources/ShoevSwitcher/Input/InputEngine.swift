@@ -100,6 +100,12 @@ final class InputEngine: KeyboardMonitorDelegate {
             return false
         }
 
+        // Never replay Enter/Tab: editors decide whether the physical key sends
+        // a message, starts a paragraph or moves focus (including Shift+Enter).
+        if [36, 76, 48].contains(keyCode) || text == "\r" || text == "\n" || text == "\t" {
+            resetAll()
+            return false
+        }
         if keyCode == 51 {
             if defaults.bool(forKey: PreferenceKey.undoAutomaticCorrection),
                current.isEmpty,

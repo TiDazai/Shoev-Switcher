@@ -4,6 +4,41 @@ import XCTest
 @testable import ShoevSwitcher
 
 final class InputEngineTests: XCTestCase {
+    func testEnterAndTabRemainPhysicalEditorActions() {
+        for (code, text) in [(36, "\r"), (76, "\r"), (48, "\t"), (36, "\n")] {
+            for flags: CGEventFlags in [[], .maskShift] {
+                let fixture = Fixture()
+                fixture.type("ghbdtn")
+                XCTAssertFalse(fixture.key(text, code: CGKeyCode(code), flags: flags))
+                XCTAssertEqual(fixture.injector.calls, 0)
+                XCTAssertTrue(fixture.source.selections.isEmpty)
+                fixture.text = ""
+                fixture.type("ghbdtn")
+                XCTAssertTrue(fixture.key(" ", code: 49))
+                XCTAssertEqual(fixture.text, "привет ")
+            }
+        }
+    }
+
+    func testPeriodCorrectionDoesNotBlockFollowingLetters() {
+        let fixture = Fixture()
+        fixture.type("ghbdtn")
+        XCTAssertTrue(fixture.key(".", code: 47))
+        XCTAssertEqual(fixture.text, "привет.")
+        XCTAssertFalse(fixture.key("\r", code: 36))
+        fixture.text = ""
+        fixture.source.language = .english
+        fixture.type("ghbdtn")
+        XCTAssertTrue(fixture.key(" ", code: 49))
+        XCTAssertEqual(fixture.text, "привет ")
+    }
+
+    func testIgnoredSetterIsNotConfusedWithChangedOrUnknownText() {
+        XCTAssertTrue(EventInjector.wasIgnored(before: "ghbdtn", expected: "привет ", after: "ghbdtn"))
+        XCTAssertFalse(EventInjector.wasIgnored(before: "ghbdtn", expected: "привет ", after: "привет "))
+        XCTAssertFalse(EventInjector.wasIgnored(before: "ghbdtn", expected: "привет ", after: nil))
+        XCTAssertFalse(EventInjector.wasIgnored(before: "привет", expected: "привет", after: "привет"))
+    }
     func testCorrectionUndoAndNextCorrection() {
         let fixture = Fixture()
         fixture.type("ghbdtn")
@@ -144,13 +179,17 @@ private final class Fixture {
         injector.apply = { [weak self] original, replacement, event in
             guard let self else { return }
             self.text = String(self.text.dropLast(original.count)) + replacement
-            if event != nil { self.text += " " }
+            if let event, let delimiter = EventInjector.inlineDelimiter(event) { self.text += delimiter }
         }
     }
     deinit { defaults.removePersistentDomain(forName: suite) }
     func type(_ text: String) { for char in text { _ = key(String(char), code: char == " " ? 49 : 0) } }
-    @discardableResult func key(_ text: String, code: CGKeyCode) -> Bool {
-        let suppressed = engine.keyboardMonitor(monitor, keyDown: CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true)!, text: text, keyCode: code)
+    @discardableResult func key(_ text: String, code: CGKeyCode, flags: CGEventFlags = []) -> Bool {
+        let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true)!
+        event.flags = flags
+        let units = Array(text.utf16)
+        event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
+        let suppressed = engine.keyboardMonitor(monitor, keyDown: event, text: text, keyCode: code)
         if !suppressed { self.text += text }
         return suppressed
     }

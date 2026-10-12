@@ -12,7 +12,10 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <Version>0.5.2</Version>
+    <Version>0.5.3</Version>
+    <Company>SHOEV SYSTEMS</Company>
+    <Authors>Тимур Шоев / Shoev Timur</Authors>
+    <Copyright>Copyright © 2026 SHOEV SYSTEMS</Copyright>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="..\..\Resources\Brand\sswitcher-logo.png">

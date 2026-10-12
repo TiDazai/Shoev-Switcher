@@ -20,12 +20,11 @@ final class EventInjector: TextReplacing {
             guard AXUIElementIsAttributeSettable(context.element, attribute as CFString, &settable) == .success,
                   settable.boolValue else { return false }
         }
-        let copied = trailingEvent?.copy()
-        guard trailingEvent == nil || copied != nil,
+        let delimiter = trailingEvent.flatMap(Self.inlineDelimiter)
+        guard trailingEvent == nil || delimiter != nil,
               let current = TextReplacementContextReader().read(), current.matches(context) else { return false }
         guard AXUIElementSetAttributeValue(context.element, kAXSelectedTextRangeAttribute as CFString, selectedRange) == .success else { return false }
         let selected = TextReplacementContextReader().read()
-        let delimiter = trailingEvent.flatMap(Self.inlineDelimiter)
         let insertedText = replacement + (delimiter ?? "")
         guard let selected, CFEqual(selected.element, context.element), selected.text == context.text,
               selected.range.location == range.location, selected.range.length == range.length,
@@ -37,18 +36,24 @@ final class EventInjector: TextReplacing {
             return false
         }
         let expectedText = (context.text as NSString).replacingCharacters(in: NSRange(location: range.location, length: range.length), with: insertedText)
-        guard let after = TextReplacementContextReader().read(), CFEqual(after.element, context.element),
-              after.text == expectedText else { return true }
+        guard let after = TextReplacementContextReader().read(), CFEqual(after.element, context.element) else { return true }
+        if Self.wasIgnored(before: context.text, expected: expectedText, after: after.text) {
+            var previous = context.range
+            guard let value = AXValueCreate(.cfRange, &previous),
+                  AXUIElementSetAttributeValue(context.element, kAXSelectedTextRangeAttribute as CFString, value) == .success else {
+                return true // Preserve the selected word if restoring failed.
+            }
+            return false
+        }
+        guard after.text == expectedText else { return true }
         var end = CFRange(location: range.location + insertedText.utf16.count, length: 0)
         guard let value = AXValueCreate(.cfRange, &end),
               AXUIElementSetAttributeValue(context.element, kAXSelectedTextRangeAttribute as CFString, value) == .success else { return true }
-        if delimiter == nil, let copied,
-           let final = TextReplacementContextReader().read(), CFEqual(final.element, context.element),
-           final.text == expectedText, final.range.location == end.location, final.range.length == 0 {
-            copied.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventMarker)
-            copied.post(tap: .cgAnnotatedSessionEventTap)
-        }
         return true
+    }
+
+    static func wasIgnored(before: String, expected: String, after: String?) -> Bool {
+        before != expected && after == before
     }
 
     static func inlineDelimiter(_ event: CGEvent) -> String? {
