@@ -163,6 +163,7 @@ struct LearningEntry: Identifiable, Equatable {
 }
 
 enum JournalEventKind: String, Codable {
+    case spelling
     case correction
     case manualCorrection
     case typed

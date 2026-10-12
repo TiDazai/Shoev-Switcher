@@ -40,7 +40,8 @@ final class ApplicationLayoutMemoryController {
 
         let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
         activeBundleIdentifier = application?.bundleIdentifier
-        guard defaults.bool(forKey: PreferenceKey.rememberApplicationLayout),
+        guard defaults.bool(forKey: PreferenceKey.enabled),
+              defaults.bool(forKey: PreferenceKey.rememberApplicationLayout),
               let activeBundleIdentifier,
               let memory = defaults.dictionary(forKey: storageKey) as? [String: String],
               let rawLanguage = memory[activeBundleIdentifier],

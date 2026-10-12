@@ -13,18 +13,3 @@ jobs:
         run: ./scripts/prepare-lexicon.sh
       - name: Run Swift tests
         run: swift test
-
-  windows:
-    runs-on: windows-2025
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-      - name: Build Windows version
-        run: dotnet build windows/ShoevSwitcher.Windows/ShoevSwitcher.Windows.csproj -c Release -p:SelfContained=false
-      - name: Run Windows self-test
-        shell: pwsh
-        run: |
-          $switcherTestProcess = Start-Process -FilePath "windows/ShoevSwitcher.Windows/bin/Release/net8.0-windows/win-x64/Shoev Switcher.exe" -ArgumentList "--self-test" -Wait -PassThru
-          if ($switcherTestProcess.ExitCode -ne 0) { throw "Windows self-test failed" }

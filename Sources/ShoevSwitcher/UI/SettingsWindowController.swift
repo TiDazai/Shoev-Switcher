@@ -45,6 +45,12 @@ final class SettingsWindowController: NSWindowController {
         fatalError("init(coder:) has not been implemented")
     }
 
+    func detachContentView() -> NSView {
+        let view = window?.contentView ?? NSView()
+        window?.contentView = nil
+        return view
+    }
+
     override func showWindow(_ sender: Any?) {
         reloadValues()
         super.showWindow(sender)
@@ -54,7 +60,7 @@ final class SettingsWindowController: NSWindowController {
     private func buildInterface() {
         guard let content = window?.contentView else { return }
 
-        configureCheckbox(enabledCheckbox, title: "Shoev Switcher включён")
+        configureCheckbox(enabledCheckbox, title: "Модуль Switcher включён")
         configureCheckbox(automaticCheckbox, title: "Исправлять раскладку автоматически")
         configureCheckbox(manualCheckbox, title: "Ручная конвертация двойным выбранным Shift")
         configureCheckbox(phraseContextCheckbox, title: "Учитывать предыдущие слова и частые фразы")
@@ -103,7 +109,7 @@ final class SettingsWindowController: NSWindowController {
         let item = NSTabViewItem(identifier: "behavior")
         item.label = "Поведение"
         item.view = tabContent([
-            option(enabledCheckbox, "Главный выключатель приложения."),
+            option(enabledCheckbox, "Независимый выключатель раскладки. Модуль Spell управляется отдельно."),
             option(automaticCheckbox, "Проверять слова на границе и исправлять неверную раскладку."),
             option(manualCheckbox, "Конвертировать выделение, текущее или последнее слово выбранным двойным Shift."),
             labeledControl("Горячая клавиша:", manualShortcutPopup),
@@ -244,7 +250,7 @@ final class SettingsWindowController: NSWindowController {
         checkbox.action = #selector(optionChanged)
     }
 
-    private func reloadValues() {
+    func reloadValues() {
         sourceManager.reloadSources()
         populate(englishPopup, sources: sourceManager.allSources(for: .english), selected: sourceManager.englishSource)
         populate(russianPopup, sources: sourceManager.allSources(for: .russian), selected: sourceManager.russianSource)

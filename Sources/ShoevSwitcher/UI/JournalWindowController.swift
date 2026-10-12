@@ -45,6 +45,12 @@ final class JournalWindowController: NSWindowController,
         fatalError("init(coder:) has not been implemented")
     }
 
+    func detachContentView() -> NSView {
+        let view = window?.contentView ?? NSView()
+        window?.contentView = nil
+        return view
+    }
+
     func reload() {
         store.recentEntries(limit: 5_000) { [weak self] entries in
             self?.allEntries = entries
@@ -124,8 +130,8 @@ final class JournalWindowController: NSWindowController,
         searchField.delegate = self
         searchField.sendsSearchStringImmediately = true
 
-        filterPopup.addItems(withTitles: ["Все события", "Автоматические", "Ручные", "Отменённые", "Набранные"])
-        for (index, value) in ["all", "correction", "manualCorrection", "undone", "typed"].enumerated() {
+        filterPopup.addItems(withTitles: ["Все события", "Switcher", "Ручные", "Отменённые", "Набранные", "Spell"])
+        for (index, value) in ["all", "correction", "manualCorrection", "undone", "typed", "spelling"].enumerated() {
             filterPopup.item(at: index)?.representedObject = value
         }
         filterPopup.target = self
@@ -146,6 +152,7 @@ final class JournalWindowController: NSWindowController,
         let scrollView = NSScrollView()
         scrollView.documentView = tableView
         scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
 
         configureJournalButtons()
@@ -184,7 +191,7 @@ final class JournalWindowController: NSWindowController,
 
     private func configureJournalButtons() {
         let buttons = [
-            NSButton(title: "Никогда не менять", target: self, action: #selector(addKeepRule)),
+            NSButton(title: "Не менять", target: self, action: #selector(addKeepRule)),
             NSButton(title: "Всегда менять", target: self, action: #selector(addConvertRule)),
             NSButton(title: "+ Русский", target: self, action: #selector(addRussianWord)),
             NSButton(title: "+ English", target: self, action: #selector(addEnglishWord)),
@@ -565,6 +572,7 @@ private struct JournalViewEntry {
         time = Self.formatter.string(from: value.createdAt)
         application = value.applicationName ?? value.applicationBundleIdentifier ?? "—"
         switch value.kind {
+        case .spelling: kind = "Spell"
         case .correction: kind = "Автоматически"
         case .manualCorrection: kind = "Вручную"
         case .typed: kind = "Набрано"

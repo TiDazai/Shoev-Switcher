@@ -62,30 +62,3 @@ jobs:
           hdiutil verify dist/Shoev-Switcher.dmg
           gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes
           gh release upload "$RELEASE_TAG" dist/Shoev-Switcher.dmg --clobber
-
-  windows-release:
-    needs: release
-    runs-on: windows-2025
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag }}
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-      - name: Publish Windows x64 build
-        run: dotnet publish windows/ShoevSwitcher.Windows/ShoevSwitcher.Windows.csproj -c Release -r win-x64 --self-contained true -o dist/windows
-      - name: Verify Windows build
-        shell: pwsh
-        run: |
-          $switcherTestProcess = Start-Process -FilePath "dist/windows/Shoev Switcher.exe" -ArgumentList "--self-test" -Wait -PassThru
-          if ($switcherTestProcess.ExitCode -ne 0) { throw "Windows self-test failed" }
-      - name: Create Windows archive
-        shell: pwsh
-        run: Compress-Archive -Path dist/windows/* -DestinationPath dist/Shoev-Switcher-Windows-x64.zip
-      - name: Attach Windows archive
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
-        run: gh release upload $env:RELEASE_TAG dist/Shoev-Switcher-Windows-x64.zip --clobber

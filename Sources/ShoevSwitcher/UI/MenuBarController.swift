@@ -7,11 +7,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let openSettings: () -> Void
     private let openJournal: () -> Void
     private let hoverIndicatorChanged: () -> Void
+    private let openApplication: () -> Void
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
 
-    private lazy var enabledItem = makeItem("Shoev Switcher включён", #selector(toggleEnabled))
+    private lazy var enabledItem = makeItem("Модуль Switcher включён", #selector(toggleEnabled))
     private lazy var automaticItem = makeItem("Исправлять автоматически", #selector(toggleAutomatic))
+    private lazy var spellItem = makeItem("Модуль Spell включён", #selector(toggleSpell))
     private lazy var hoverIndicatorItem = makeItem("Показывать флаг у курсора", #selector(toggleHoverIndicator))
     private lazy var journalItem = makeItem("Журнал исправлений", #selector(toggleJournal))
     private lazy var fullDiaryItem = makeItem("Полный дневник", #selector(toggleFullDiary))
@@ -23,13 +25,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         sourceManager: InputSourceManager,
         openSettings: @escaping () -> Void,
         openJournal: @escaping () -> Void,
-        hoverIndicatorChanged: @escaping () -> Void
+        hoverIndicatorChanged: @escaping () -> Void,
+        openApplication: @escaping () -> Void = {}
     ) {
         self.monitor = monitor
         self.sourceManager = sourceManager
         self.openSettings = openSettings
         self.openJournal = openJournal
         self.hoverIndicatorChanged = hoverIndicatorChanged
+        self.openApplication = openApplication
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
         configureStatusItem()
@@ -40,6 +44,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let defaults = UserDefaults.standard
         enabledItem.state = defaults.bool(forKey: PreferenceKey.enabled) ? .on : .off
         automaticItem.state = defaults.bool(forKey: PreferenceKey.automaticCorrection) ? .on : .off
+        spellItem.state = defaults.bool(forKey: SpellPreferenceKey.enabled) ? .on : .off
         hoverIndicatorItem.state = defaults.bool(forKey: PreferenceKey.hoverLanguageIndicator) ? .on : .off
         journalItem.state = defaults.bool(forKey: PreferenceKey.journalEnabled) ? .on : .off
         fullDiaryItem.state = defaults.bool(forKey: PreferenceKey.fullDiaryEnabled) ? .on : .off
@@ -47,7 +52,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         launchAtLoginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         permissionItem.isHidden = monitor.hasRequiredPermissions
 
-        let enabled = defaults.bool(forKey: PreferenceKey.enabled)
+        let enabled = defaults.bool(forKey: PreferenceKey.enabled) || defaults.bool(forKey: SpellPreferenceKey.enabled)
         statusItem.button?.alphaValue = enabled ? 1 : 0.45
         statusItem.button?.toolTip = monitor.hasRequiredPermissions
             ? "Shoev Switcher"
@@ -77,7 +82,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func configureMenu() {
         menu.delegate = self
+        menu.addItem(makeItem("Открыть Shoev Switcher…", #selector(showApplication)))
+        menu.addItem(.separator())
         menu.addItem(enabledItem)
+        menu.addItem(spellItem)
         menu.addItem(automaticItem)
         menu.addItem(hoverIndicatorItem)
         menu.addItem(.separator())
@@ -99,6 +107,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func toggleEnabled() {
         togglePreference(PreferenceKey.enabled)
     }
+    @objc private func toggleSpell() { togglePreference(SpellPreferenceKey.enabled) }
+    @objc private func showApplication() { openApplication() }
 
     @objc private func toggleAutomatic() {
         togglePreference(PreferenceKey.automaticCorrection)

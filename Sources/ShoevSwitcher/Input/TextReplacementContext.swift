@@ -33,28 +33,9 @@ struct TextReplacementContext {
 
 final class TextReplacementContextReader {
     func read() -> TextReplacementContext? {
-        let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, 0.03)
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
-        let element = focused as! AXUIElement
-        AXUIElementSetMessagingTimeout(element, 0.03)
-        var subrole: CFTypeRef?
-        let subroleStatus = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole)
-        guard (subroleStatus == .success || subroleStatus == .attributeUnsupported),
-              subrole as? String != kAXSecureTextFieldSubrole as String else { return nil }
-        var rawRange: CFTypeRef?
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rawRange) == .success,
-              let rawRange, CFGetTypeID(rawRange) == AXValueGetTypeID(),
-              AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) == .success,
-              let text = value as? String else { return nil }
-        var range = CFRange()
-        guard AXValueGetValue(rawRange as! AXValue, .cfRange, &range),
-              range.location >= 0, range.length >= 0,
-              range.location <= text.utf16.count,
-              range.length <= text.utf16.count - range.location else { return nil }
-        return TextReplacementContext(element: element, text: text, range: range)
+        guard let context = VerifiedCaretContextReader().read(),
+              let element = context.element, let text = context.fullText else { return nil }
+        return TextReplacementContext(element: element, text: text,
+            range: CFRange(location: context.prefix.utf16.count, length: context.selectionLength))
     }
 }

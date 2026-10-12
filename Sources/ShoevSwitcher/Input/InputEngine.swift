@@ -29,6 +29,7 @@ final class InputEngine: KeyboardMonitorDelegate {
     private var completedPrefix: String?
     private let readContext: () -> TextReplacementContext?
     private let frontmost: () -> NSRunningApplication?
+    private(set) var didScheduleAutomaticCorrection = false
 
     init(
         sourceManager: InputSourceManaging,
@@ -73,6 +74,7 @@ final class InputEngine: KeyboardMonitorDelegate {
         keyCode: CGKeyCode
     ) -> Bool {
         lastShortcutShiftRelease = nil
+        didScheduleAutomaticCorrection = false
         shortcutShiftWasDown = false
         guard defaults.bool(forKey: PreferenceKey.enabled) else {
             resetAll()
@@ -233,40 +235,50 @@ final class InputEngine: KeyboardMonitorDelegate {
             return false
 
         case .convert(let candidate):
+            didScheduleAutomaticCorrection = true
             logger.info(
                 "Detector converted token. length=\(original.count, privacy: .public) source=\(sourceLanguage.rawValue, privacy: .public)"
             )
-            guard injector.replace(
+            let precedingLanguages = recentLanguages
+            let precedingTokens = recentTokens
+            let consumed = injector.replaceAfterDelimiter(
                 original: original,
                 with: candidate.replacement,
                 trailingEvent: trailingEvent,
-                context: context
-            ) else { resetAll(); return false }
-            _ = sourceManager.select(candidate.targetLanguage)
-            completedField = context.element
-            completedPrefix = String(context.prefix.dropLast(original.count)) + candidate.replacement + terminator
-            correctionNotifier.show(original: candidate.original, replacement: candidate.replacement)
-            lastCompleted = CompletedToken(
-                displayedText: candidate.replacement,
-                alternativeText: candidate.original,
-                displayedLanguage: candidate.targetLanguage,
-                alternativeLanguage: candidate.sourceLanguage,
-                terminator: terminator,
-                processIdentifier: pid,
-                completedAt: Date(),
-                correctionKind: .correction
-            )
-            log(
-                kind: .correction,
-                original: candidate.original,
-                replacement: candidate.replacement,
-                sourceLanguage: candidate.sourceLanguage,
-                targetLanguage: candidate.targetLanguage,
-                application: application
-            )
-            recordToken(candidate.replacement, language: candidate.targetLanguage, terminator: terminator)
+                context: context,
+                completion: { [weak self] in
+                    guard let self, self.defaults.bool(forKey: PreferenceKey.enabled),
+                          self.frontmost()?.processIdentifier == application?.processIdentifier else { return }
+                    self.resetAll()
+                    self.recentLanguages = precedingLanguages
+                    self.recentTokens = precedingTokens
+                    _ = self.sourceManager.select(candidate.targetLanguage)
+                    self.completedField = context.element
+                    self.completedPrefix = String(context.prefix.dropLast(original.count)) + candidate.replacement + terminator
+                    self.correctionNotifier.show(original: candidate.original, replacement: candidate.replacement)
+                    self.lastCompleted = CompletedToken(
+                        displayedText: candidate.replacement,
+                        alternativeText: candidate.original,
+                        displayedLanguage: candidate.targetLanguage,
+                        alternativeLanguage: candidate.sourceLanguage,
+                        terminator: terminator,
+                        processIdentifier: pid,
+                        completedAt: Date(),
+                        correctionKind: .correction
+                    )
+                    self.log(
+                        kind: .correction,
+                        original: candidate.original,
+                        replacement: candidate.replacement,
+                        sourceLanguage: candidate.sourceLanguage,
+                        targetLanguage: candidate.targetLanguage,
+                        application: application
+                    )
+                    self.recordToken(candidate.replacement, language: candidate.targetLanguage, terminator: terminator)
+                })
+            if !consumed { resetAll() }
             current.clear()
-            return true
+            return consumed
         }
     }
 
