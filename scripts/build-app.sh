@@ -7,6 +7,7 @@ dist_dir="$project_dir/dist"
 app_bundle="$dist_dir/Shoev Switcher.app"
 arm_scratch="$build_root/arm64"
 x86_scratch="$build_root/x86_64"
+minimum_macos="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$project_dir/Resources/Info.plist")"
 
 mkdir -p "$build_root" "$dist_dir"
 
@@ -15,16 +16,16 @@ mkdir -p "$build_root" "$dist_dir"
 swift build \
   --package-path "$project_dir" \
   --configuration release \
-  --triple arm64-apple-macosx13.0 \
+  --triple "arm64-apple-macosx$minimum_macos" \
   --scratch-path "$arm_scratch"
-arm_bin="$(swift build --package-path "$project_dir" --configuration release --triple arm64-apple-macosx13.0 --scratch-path "$arm_scratch" --show-bin-path)"
+arm_bin="$(swift build --package-path "$project_dir" --configuration release --triple "arm64-apple-macosx$minimum_macos" --scratch-path "$arm_scratch" --show-bin-path)"
 
 swift build \
   --package-path "$project_dir" \
   --configuration release \
-  --triple x86_64-apple-macosx13.0 \
+  --triple "x86_64-apple-macosx$minimum_macos" \
   --scratch-path "$x86_scratch"
-x86_bin="$(swift build --package-path "$project_dir" --configuration release --triple x86_64-apple-macosx13.0 --scratch-path "$x86_scratch" --show-bin-path)"
+x86_bin="$(swift build --package-path "$project_dir" --configuration release --triple "x86_64-apple-macosx$minimum_macos" --scratch-path "$x86_scratch" --show-bin-path)"
 
 if [[ "$app_bundle" != "$dist_dir/Shoev Switcher.app" ]]; then
   echo "Unexpected app bundle path" >&2
@@ -37,6 +38,13 @@ lipo -create \
   "$arm_bin/ShoevSwitcher" \
   "$x86_bin/ShoevSwitcher" \
   -output "$app_bundle/Contents/MacOS/ShoevSwitcher"
+for architecture in arm64 x86_64; do
+  actual_minimum="$(xcrun vtool -arch "$architecture" -show-build "$app_bundle/Contents/MacOS/ShoevSwitcher" | awk '/minos/{print $2}')"
+  if [[ "$actual_minimum" != "$minimum_macos" ]]; then
+    echo "Unexpected minimum macOS version for $architecture: $actual_minimum (expected $minimum_macos)" >&2
+    exit 1
+  fi
+done
 cp "$project_dir/Resources/Info.plist" "$app_bundle/Contents/Info.plist"
 cp "$project_dir/Resources/AppIcon.icns" "$app_bundle/Contents/Resources/AppIcon.icns"
 

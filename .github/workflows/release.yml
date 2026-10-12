@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-15
+    runs-on: macos-26
     env:
       SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION }}
       CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}

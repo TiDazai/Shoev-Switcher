@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://github.com/TiDazai/Shoev-Switcher/actions/workflows/ci.yml"><img src="https://github.com/TiDazai/Shoev-Switcher/actions/workflows/ci.yml/badge.svg" alt="macOS CI"></a>
   <a href="https://github.com/TiDazai/Shoev-Switcher/releases"><img src="https://img.shields.io/github/v/release/TiDazai/Shoev-Switcher?include_prereleases&amp;color=d8bd7d&amp;labelColor=23272c&amp;label=release" alt="Release"></a>
-  <img src="https://img.shields.io/badge/macOS-13%2B-303030" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/macOS-26%2B-303030" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-native-d9ad55?labelColor=591124" alt="Native Swift">
 </p>
 
@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.6.2/Shoev-Switcher.dmg"><strong>Скачать для Mac · DMG</strong></a>
+  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.6.3/Shoev-Switcher.dmg"><strong>Скачать для macOS 26+ · DMG</strong></a>
   &nbsp; · &nbsp;
   <a href="CHANGELOG.md">Что нового</a>
 </p>
@@ -30,7 +30,7 @@
 
 Shoev Switcher is an offline Russian–English keyboard layout and spelling app for macOS, made by SHOEV SYSTEMS.
 
-Объединённая версия для macOS доступна как [предрелиз 0.6.2](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.6.2). Это первый выпуск с двумя модулями; совместимость текстовых полей зависит от редактора.
+Shoev Switcher предназначен только для **macOS 26 и новее**. Текущая версия доступна как [предрелиз 0.6.3](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.6.3). Совместимость текстовых полей зависит от редактора.
 
 ## Просто продолжай писать
 
@@ -64,12 +64,12 @@ Enter, Shift+Enter и Tab проходят в приложение без пер
 
 ## Установка на Mac
 
-1. Открой [DMG](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.6.2/Shoev-Switcher.dmg) и перетащи приложение в **Applications**.
+1. Открой [DMG для macOS 26+](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.6.3/Shoev-Switcher.dmg) и перетащи приложение в **Applications**.
 2. Запусти Shoev Switcher.
 3. Разреши **Мониторинг ввода** и **Универсальный доступ** в настройках macOS.
 4. Убедись, что добавлены русская и английская раскладки.
 
-Поддерживаются **macOS 13+**, **Apple Silicon и Intel** одним приложением.
+Требуется **macOS 26+**. **Apple Silicon и Intel** — в одном приложении; версии macOS до 26 больше не поддерживаются. Архивные релизы сохраняют прежние системные требования.
 
 Текущая общедоступная сборка не нотарифицирована Apple. При первом запуске macOS может её заблокировать: используй «Всё равно открыть» в «Системные настройки → Конфиденциальность и безопасность», если доверяешь источнику.
 
@@ -105,7 +105,7 @@ Enter, Shift+Enter и Tab проходят в приложение без пер
 
 ## Разработка
 
-macOS — Swift Package, Xcode и Command Line Tools:
+macOS 26+ — Swift Package, Xcode 26+ и соответствующие Command Line Tools:
 
 ```bash
 ./scripts/prepare-lexicon.sh

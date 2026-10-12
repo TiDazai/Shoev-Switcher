@@ -6,7 +6,7 @@ body:
     id: version
     attributes:
       label: Версия Switcher и операционной системы
-      placeholder: 0.5.1, macOS 15, Apple Silicon
+      placeholder: 0.6.3, macOS 26, Apple Silicon
     validations:
       required: true
   - type: input

@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "ShoevSwitcher",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS("26.0")],
     products: [
         .executable(name: "ShoevSwitcher", targets: ["ShoevSwitcher"])
     ],

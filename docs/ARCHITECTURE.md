@@ -115,6 +115,6 @@ Event Tap выполняет работу, связанную с текущим 
 
 ## Совместимость
 
-Целевая платформа — macOS 13+, Apple Silicon и Intel. Перед стабильным релизом необходимо проверить TextEdit, Notes, Safari, Chrome, Firefox, Mail, Telegram, Slack, Pages и Word. Terminal, iTerm2, Xcode и VS Code по умолчанию находятся в исключениях.
+Целевая платформа с версии 0.6.3 — только macOS 26+, Apple Silicon и Intel. Минимальная версия указана в Swift Package и Info.plist; сборочный скрипт берёт deployment target из Info.plist и проверяет обе архитектуры готового исполняемого файла. GitHub Actions настроен на macOS 26. Перед стабильным релизом необходимо проверить TextEdit, Notes, Safari, Chrome, Firefox, Mail, Telegram, Slack, Pages и Word. Terminal, iTerm2, Xcode и VS Code по умолчанию находятся в исключениях.
 
 Автоматическая замена требует доступных AXValue, AXSelectedTextRange и записываемого выделения; текст меняется через AXSelectedText или проверенную резервную вставку. Непрозрачные и нестандартные поля пропускаются: слепого удаления текста синтетическими Backspace нет. Начало набора внутри уже существующего слова также пропускается. После удаления текущий токен сбрасывается; новое слово снова обрабатывается.
