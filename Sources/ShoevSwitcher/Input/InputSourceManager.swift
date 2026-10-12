@@ -1,7 +1,15 @@
 import Carbon.HIToolbox
 import Foundation
 
-final class InputSourceManager {
+protocol InputSourceManaging {
+    func currentLanguage() -> InputLanguage?
+    func select(_ language: InputLanguage) -> Bool
+    func text(for strokes: [KeyStroke], in language: InputLanguage) -> String?
+    func isPotentialWordStroke(_ stroke: KeyStroke) -> Bool
+    func convertedText(_ text: String, from sourceLanguage: InputLanguage, to targetLanguage: InputLanguage) -> String
+}
+
+final class InputSourceManager: InputSourceManaging {
     struct Source {
         let reference: TISInputSource
         let identifier: String
@@ -96,7 +104,8 @@ final class InputSourceManager {
         let from = sourceLanguage == .english ? Self.englishCharacters : Self.russianCharacters
         let to = targetLanguage == .russian ? Self.russianCharacters : Self.englishCharacters
         return text.map { character in
-            let lower = Character(String(character).lowercased())
+            let lowered = String(character).lowercased()
+            guard lowered.count == 1, let lower = lowered.first else { return String(character) }
             guard let index = from.firstIndex(of: lower) else { return String(character) }
             let offset = from.distance(from: from.startIndex, to: index)
             guard let targetIndex = to.index(to.startIndex, offsetBy: offset, limitedBy: to.endIndex),

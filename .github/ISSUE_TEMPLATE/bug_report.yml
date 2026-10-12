@@ -1,0 +1,30 @@
+name: Ошибка
+description: Сообщить о неправильном переключении или сбое
+title: "[Bug] "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Версия Switcher и операционной системы
+      placeholder: 0.5.1, macOS 15, Apple Silicon
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: В каком приложении и поле это происходит?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как повторить
+      description: Укажите исходную раскладку, текст и нажатые клавиши. Не прикладывайте пароли и личные переписки.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что ожидалось и что получилось
+    validations:
+      required: true

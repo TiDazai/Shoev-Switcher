@@ -70,6 +70,9 @@ final class JournalStore {
         queue.sync { (try? readRules()) ?? [] }
     }
 
+    /// Drain queued writes before closing the app, including the final partial batch.
+    func flush() { queue.sync { flushPending() } }
+
     func addRule(
         kind: RuleKind,
         pattern: String,
@@ -249,12 +252,12 @@ final class JournalStore {
         flushScheduled = false
         guard !pendingEntries.isEmpty else { return }
         let entries = pendingEntries
-        pendingEntries.removeAll(keepingCapacity: true)
 
         do {
             try execute("BEGIN IMMEDIATE TRANSACTION;")
             for entry in entries { try insertEntry(entry) }
             try execute("COMMIT;")
+            pendingEntries.removeFirst(entries.count)
         } catch {
             try? execute("ROLLBACK;")
         }

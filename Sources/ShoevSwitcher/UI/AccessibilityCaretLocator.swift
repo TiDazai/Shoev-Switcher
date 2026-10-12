@@ -4,6 +4,7 @@ import Foundation
 
 final class AccessibilityCaretLocator {
     private let systemWideElement = AXUIElementCreateSystemWide()
+    init() { AXUIElementSetMessagingTimeout(systemWideElement, 0.02) }
 
     func caretLocation() -> NSPoint? {
         guard let element = focusedElement(), !isSecure(element), isEditable(element) else { return nil }
@@ -12,13 +13,14 @@ final class AccessibilityCaretLocator {
             element,
             kAXSelectedTextRangeAttribute as CFString,
             &rangeValue
-        ) == .success, let rangeValue else { return nil }
+        ) == .success, let rangeValue, CFGetTypeID(rangeValue) == AXValueGetTypeID() else { return nil }
 
-        let selectedRangeValue = unsafeBitCast(rangeValue, to: AXValue.self)
+        let selectedRangeValue = rangeValue as! AXValue
         var selectedRange = CFRange()
         guard AXValueGetValue(selectedRangeValue, .cfRange, &selectedRange),
-              selectedRange.location != kCFNotFound,
-              selectedRange.length >= 0 else { return nil }
+              selectedRange.location >= 0,
+              selectedRange.length >= 0,
+              selectedRange.location <= Int.max - selectedRange.length else { return nil }
 
         var caretRange = CFRange(location: selectedRange.location + selectedRange.length, length: 0)
         guard let caretRangeValue = AXValueCreate(.cfRange, &caretRange) else { return nil }
@@ -28,8 +30,8 @@ final class AccessibilityCaretLocator {
             kAXBoundsForRangeParameterizedAttribute as CFString,
             caretRangeValue,
             &boundsValue
-        ) == .success, let boundsValue else { return nil }
-        let axValue = unsafeBitCast(boundsValue, to: AXValue.self)
+        ) == .success, let boundsValue, CFGetTypeID(boundsValue) == AXValueGetTypeID() else { return nil }
+        let axValue = boundsValue as! AXValue
         var rect = CGRect.zero
         guard AXValueGetValue(axValue, .cgRect, &rect),
               rect.height > 0,
@@ -44,8 +46,10 @@ final class AccessibilityCaretLocator {
             systemWideElement,
             kAXFocusedUIElementAttribute as CFString,
             &value
-        ) == .success, let value else { return nil }
-        return unsafeBitCast(value, to: AXUIElement.self)
+        ) == .success, let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        let element = value as! AXUIElement
+        AXUIElementSetMessagingTimeout(element, 0.02)
+        return element
     }
 
     private func isEditable(_ element: AXUIElement) -> Bool {

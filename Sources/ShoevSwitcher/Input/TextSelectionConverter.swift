@@ -11,10 +11,12 @@ struct SelectionConversion: Equatable {
 final class TextSelectionConverter {
     private let systemWideElement = AXUIElementCreateSystemWide()
 
+    init() { AXUIElementSetMessagingTimeout(systemWideElement, 0.03) }
+
     func convertSelection(
         sourceLanguage: InputLanguage,
-        sourceManager: InputSourceManager,
-        injector: EventInjector
+        sourceManager: InputSourceManaging,
+        injector: TextReplacing
     ) -> SelectionConversion? {
         guard let element = focusedElement(), !isSecure(element),
               let selectedText = stringAttribute(element, key: kAXSelectedTextAttribute as CFString),
@@ -27,15 +29,17 @@ final class TextSelectionConverter {
             to: targetLanguage
         )
         guard replacement != selectedText else { return nil }
+        guard let before = TextReplacementContextReader().read(),
+              CFEqual(before.element, element), before.range.length > 0,
+              (before.text as NSString).substring(with: NSRange(location: before.range.location, length: before.range.length)) == selectedText,
+              let current = TextReplacementContextReader().read(), before.matches(current) else { return nil }
 
         let status = AXUIElementSetAttributeValue(
             element,
             kAXSelectedTextAttribute as CFString,
             replacement as CFTypeRef
         )
-        if status != .success {
-            injector.insert(replacement)
-        }
+        guard status == .success else { return nil }
         return SelectionConversion(
             original: selectedText,
             replacement: replacement,
@@ -65,7 +69,10 @@ final class TextSelectionConverter {
             kAXFocusedUIElementAttribute as CFString,
             &value
         ) == .success, let value else { return nil }
-        return unsafeBitCast(value, to: AXUIElement.self)
+        guard CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        let element = value as! AXUIElement
+        AXUIElementSetMessagingTimeout(element, 0.03)
+        return element
     }
 
     private func isSecure(_ element: AXUIElement) -> Bool {

@@ -21,7 +21,8 @@ internal static class SelfTest
     internal static int Run()
     {
         using var lexicon = new Lexicon();
-        return LayoutConverter.Convert("ghbdtn") == "привет"
+        return System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.Input>() == (IntPtr.Size == 8 ? 40 : 28)
+            && LayoutConverter.Convert("ghbdtn") == "привет"
             && LayoutConverter.Convert("руддщ") == "hello"
             && lexicon.Score("привет", Language.Russian) is > 0
             && lexicon.Score("hello", Language.English) is > 0 ? 0 : 1;

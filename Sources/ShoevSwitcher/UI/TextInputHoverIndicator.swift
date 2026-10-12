@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import Foundation
 
 final class TextInputHoverIndicator {
@@ -23,9 +24,11 @@ final class TextInputHoverIndicator {
             defer: false
         )
         configurePanel()
+        AXUIElementSetMessagingTimeout(systemWideElement, 0.02)
     }
 
     func mouseMoved(to quartzPoint: CGPoint) {
+        guard indicatorEnabled else { stop(); return }
         latestQuartzPoint = quartzPoint
         if panel.isVisible {
             positionPanel(near: NSEvent.mouseLocation)
@@ -48,6 +51,7 @@ final class TextInputHoverIndicator {
     }
 
     func inputActivityOccurred() {
+        guard indicatorEnabled else { stop(); return }
         guard panel.isVisible,
               defaults.bool(forKey: PreferenceKey.enabled),
               defaults.bool(forKey: PreferenceKey.hoverLanguageIndicator),
@@ -56,8 +60,8 @@ final class TextInputHoverIndicator {
     }
 
     func preferenceDidChange() {
-        if !defaults.bool(forKey: PreferenceKey.hoverLanguageIndicator) {
-            hide()
+        if !indicatorEnabled {
+            stop()
         } else {
             evaluateLatestPosition()
         }
@@ -71,8 +75,7 @@ final class TextInputHoverIndicator {
 
     private func evaluateLatestPosition() {
         lastEvaluation = Date()
-        guard defaults.bool(forKey: PreferenceKey.enabled),
-              defaults.bool(forKey: PreferenceKey.hoverLanguageIndicator),
+        guard indicatorEnabled,
               let element = element(at: latestQuartzPoint),
               let processIdentifier = processIdentifier(of: element),
               !isExcluded(processIdentifier: processIdentifier),
@@ -100,6 +103,7 @@ final class TextInputHoverIndicator {
         var element: AXUIElement? = startingElement
         for _ in 0..<6 {
             guard let current = element else { return false }
+            AXUIElementSetMessagingTimeout(current, 0.02)
             let role = stringAttribute(current, key: kAXRoleAttribute as CFString)
             let subrole = stringAttribute(current, key: kAXSubroleAttribute as CFString)
             if subrole == (kAXSecureTextFieldSubrole as String) { return false }
@@ -154,8 +158,8 @@ final class TextInputHoverIndicator {
     private func elementAttribute(_ element: AXUIElement, key: CFString) -> AXUIElement? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, key, &value) == .success,
-              let value else { return nil }
-        return unsafeBitCast(value, to: AXUIElement.self)
+              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        return (value as! AXUIElement)
     }
 
     private func configurePanel() {
@@ -203,6 +207,11 @@ final class TextInputHoverIndicator {
     }
 
     private let evaluationInterval: TimeInterval = 0.06
+    private var indicatorEnabled: Bool {
+        defaults.bool(forKey: PreferenceKey.enabled)
+            && defaults.bool(forKey: PreferenceKey.hoverLanguageIndicator)
+            && !IsSecureEventInputEnabled()
+    }
 }
 
 enum TextInputAccessibilityTraits {

@@ -24,12 +24,12 @@ internal sealed class SwitcherEngine
         var process = NativeMethods.ProcessName();
         if (window != foreground)
         {
-            word = ""; window = foreground;
+            word = ""; lastCorrection = null; recentLanguages.Clear(); window = foreground;
             if (SettingsStore.GetBool("RememberLayout", false) && lastApplicationLayout.TryGetValue(process, out var remembered)) NativeMethods.SwitchLayout(remembered);
         }
         if (!SettingsStore.GetBool("Enabled", true) || Excluded.Contains(process)
             || SettingsStore.GetExclusions().Contains(process, StringComparer.OrdinalIgnoreCase)
-            || NativeMethods.IsPasswordField()) { word = ""; return false; }
+            || NativeMethods.IsPasswordField()) { word = ""; lastCorrection = null; return false; }
 
         var manualKey = SettingsStore.GetString("ManualSide", "Right") == "Left" ? 0xA0u : 0xA1u;
         if (key.VirtualKey == manualKey)
@@ -38,36 +38,39 @@ internal sealed class SwitcherEngine
             if (SettingsStore.GetBool("Manual", true) && word.Length > 0 && now - lastShift < TimeSpan.FromMilliseconds(450))
             {
                 var original = word; var converted = LayoutConverter.Convert(original); var language = LayoutConverter.Detect(converted);
-                NativeMethods.Replace(original.Length, converted, ""); NativeMethods.SwitchLayout(language);
+                if (!NativeMethods.Replace(original.Length, converted, "")) { word = ""; lastCorrection = null; return false; }
+                NativeMethods.SwitchLayout(language);
                 if (SettingsStore.GetBool("Learning", true)) PersonalRules.RecordManual(original, converted);
                 RegisterLanguage(language, process); Corrected?.Invoke(original, converted); word = converted; lastShift = default; return false;
             }
             lastShift = now; return false;
         }
-        if ((Control.ModifierKeys & (Keys.Control | Keys.Alt)) != 0 || key.VirtualKey is 0x5B or 0x5C) { word = ""; return false; }
+        lastShift = default;
+        if ((Control.ModifierKeys & (Keys.Control | Keys.Alt)) != 0 || key.VirtualKey is 0x5B or 0x5C) { word = ""; lastCorrection = null; return false; }
         if (key.VirtualKey == 0x08 && SettingsStore.GetBool("Undo", true) && lastCorrection is { } previous
             && previous.Window == foreground && DateTime.UtcNow - previous.Time < TimeSpan.FromSeconds(5))
         {
-            NativeMethods.Replace(previous.Alternative.Length + previous.Delimiter.Length, previous.Original, previous.Delimiter);
+            if (!NativeMethods.Replace(previous.Alternative.Length + previous.Delimiter.Length, previous.Original, previous.Delimiter)) { lastCorrection = null; word = ""; return false; }
             NativeMethods.SwitchLayout(previous.Source); Corrected?.Invoke(previous.Alternative, previous.Original); lastCorrection = null; word = ""; return true;
         }
-        if (ResetKeys.Contains(key.VirtualKey)) { word = ""; return false; }
+        if (ResetKeys.Contains(key.VirtualKey)) { word = ""; lastCorrection = null; return false; }
         var text = key.Text();
         if (text.Length == 0) return false;
-        if (text.All(char.IsLetter)) { word += text; if (word.Length > 64) word = ""; return false; }
+        if (text.All(char.IsLetter)) { lastCorrection = null; word += text; if (word.Length > 64) word = ""; return false; }
         if (text is " " or "\r" or "\n" || text.All(c => ",.;:!?…".Contains(c))) return Complete(text);
-        word = ""; return false;
+        word = ""; lastCorrection = null; return false;
     }
 
     private bool Complete(string delimiter)
     {
         if (word.Length == 0) return false;
         var original = word; word = "";
+        lastCorrection = null;
         if (!SettingsStore.GetBool("Automatic", true)) { var language = LayoutConverter.Detect(original); RegisterLanguage(language, NativeMethods.ProcessName()); Completed?.Invoke(original, language); return false; }
         var source = LayoutConverter.Detect(original); var target = source == Language.English ? Language.Russian : Language.English;
         var alternative = LayoutConverter.Convert(original);
         if (!ShouldConvert(original, alternative, source, target, NativeMethods.ProcessName())) { RegisterLanguage(source, NativeMethods.ProcessName()); Completed?.Invoke(original, source); return false; }
-        NativeMethods.Replace(original.Length, alternative, delimiter);
+        if (!NativeMethods.Replace(original.Length, alternative, delimiter)) return false;
         NativeMethods.SwitchLayout(target);
         lastCorrection = new LastCorrection(original, alternative, delimiter, source, NativeMethods.GetForegroundWindow(), DateTime.UtcNow);
         RegisterLanguage(target, NativeMethods.ProcessName()); Completed?.Invoke(alternative, target);

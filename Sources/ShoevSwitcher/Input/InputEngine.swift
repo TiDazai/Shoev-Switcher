@@ -6,11 +6,11 @@ import os
 
 final class InputEngine: KeyboardMonitorDelegate {
     private let logger = Logger(subsystem: "com.shoev.switcher", category: "InputEngine")
-    private let sourceManager: InputSourceManager
+    private let sourceManager: InputSourceManaging
     private let detector: LanguageDetector
     private let ruleStore: RuleStore
     private let journalStore: JournalStore?
-    private let injector: EventInjector
+    private let injector: TextReplacing
     private let defaults: UserDefaults
     private let selectionConverter: TextSelectionConverter
     private let correctionNotifier: CorrectionNotifier
@@ -24,17 +24,24 @@ final class InputEngine: KeyboardMonitorDelegate {
     private var activeProcessIdentifier: pid_t?
     private var shortcutShiftWasDown = false
     private var lastShortcutShiftRelease: Date?
+    private var tokenStart: TextReplacementContext?
+    private var completedField: AXUIElement?
+    private var completedPrefix: String?
+    private let readContext: () -> TextReplacementContext?
+    private let frontmost: () -> NSRunningApplication?
 
     init(
-        sourceManager: InputSourceManager,
+        sourceManager: InputSourceManaging,
         detector: LanguageDetector,
         ruleStore: RuleStore,
         journalStore: JournalStore?,
-        injector: EventInjector = EventInjector(),
+        injector: TextReplacing = EventInjector(),
         defaults: UserDefaults = .standard,
         selectionConverter: TextSelectionConverter = TextSelectionConverter(),
         correctionNotifier: CorrectionNotifier = CorrectionNotifier(),
-        applicationProfiles: ApplicationLanguageProfileStore = ApplicationLanguageProfileStore()
+        applicationProfiles: ApplicationLanguageProfileStore = ApplicationLanguageProfileStore(),
+        readContext: @escaping () -> TextReplacementContext? = { TextReplacementContextReader().read() },
+        frontmost: @escaping () -> NSRunningApplication? = { NSWorkspace.shared.frontmostApplication }
     ) {
         self.sourceManager = sourceManager
         self.detector = detector
@@ -45,6 +52,8 @@ final class InputEngine: KeyboardMonitorDelegate {
         self.selectionConverter = selectionConverter
         self.correctionNotifier = correctionNotifier
         self.applicationProfiles = applicationProfiles
+        self.readContext = readContext
+        self.frontmost = frontmost
     }
 
     func reloadRules() {
@@ -63,12 +72,14 @@ final class InputEngine: KeyboardMonitorDelegate {
         text: String,
         keyCode: CGKeyCode
     ) -> Bool {
+        lastShortcutShiftRelease = nil
+        shortcutShiftWasDown = false
         guard defaults.bool(forKey: PreferenceKey.enabled) else {
             resetAll()
             return false
         }
 
-        let application = NSWorkspace.shared.frontmostApplication
+        let application = frontmost()
         if activeProcessIdentifier != application?.processIdentifier {
             sensitiveInputGuard.reset()
             resetAll()
@@ -95,14 +106,7 @@ final class InputEngine: KeyboardMonitorDelegate {
                undoLastAutomaticCorrection(application: application) {
                 return true
             }
-            if current.isEmpty {
-                lastCompleted = nil
-                recentLanguages.removeAll(keepingCapacity: true)
-                recentTokens.removeAll(keepingCapacity: true)
-                return false
-            }
-            current.removeLast()
-            if current.isEmpty { lastCompleted = nil }
+            resetAll()
             return false
         }
         if navigationKeyCodes.contains(keyCode) {
@@ -153,11 +157,10 @@ final class InputEngine: KeyboardMonitorDelegate {
         shortcutShiftWasDown = false
 
         let now = Date()
-        defer { lastShortcutShiftRelease = now }
         if let previous = lastShortcutShiftRelease, now.timeIntervalSince(previous) <= 0.45 {
             performManualConversion()
             lastShortcutShiftRelease = nil
-        }
+        } else { lastShortcutShiftRelease = now }
     }
 
     private func completeCurrentToken(
@@ -165,6 +168,7 @@ final class InputEngine: KeyboardMonitorDelegate {
         trailingEvent: CGEvent,
         application: NSRunningApplication?
     ) -> Bool {
+        guard let context = verifiedCurrentContext() else { resetAll(); return false }
         guard let sourceLanguage = sourceManager.currentLanguage() else {
             logger.error("Token ignored because the active input language is unknown")
             current.clear()
@@ -201,6 +205,8 @@ final class InputEngine: KeyboardMonitorDelegate {
 
         switch evaluation.decision {
         case .keep:
+            completedField = context.element
+            completedPrefix = context.prefix + terminator
             logger.info(
                 "Detector kept token. length=\(original.count, privacy: .public) source=\(sourceLanguage.rawValue, privacy: .public)"
             )
@@ -224,12 +230,15 @@ final class InputEngine: KeyboardMonitorDelegate {
             logger.info(
                 "Detector converted token. length=\(original.count, privacy: .public) source=\(sourceLanguage.rawValue, privacy: .public)"
             )
-            sourceManager.select(candidate.targetLanguage)
-            injector.replace(
-                deleteCount: original.count,
+            guard injector.replace(
+                original: original,
                 with: candidate.replacement,
-                trailingEvent: trailingEvent
-            )
+                trailingEvent: trailingEvent,
+                context: context
+            ) else { resetAll(); return false }
+            _ = sourceManager.select(candidate.targetLanguage)
+            completedField = context.element
+            completedPrefix = String(context.prefix.dropLast(original.count)) + candidate.replacement + terminator
             correctionNotifier.show(original: candidate.original, replacement: candidate.replacement)
             lastCompleted = CompletedToken(
                 displayedText: candidate.replacement,
@@ -256,7 +265,7 @@ final class InputEngine: KeyboardMonitorDelegate {
     }
 
     private func performManualConversion() {
-        let application = NSWorkspace.shared.frontmostApplication
+        let application = frontmost()
         let pid = application?.processIdentifier ?? 0
 
         guard defaults.bool(forKey: PreferenceKey.enabled),
@@ -271,7 +280,7 @@ final class InputEngine: KeyboardMonitorDelegate {
                sourceManager: sourceManager,
                injector: injector
            ) {
-            sourceManager.select(conversion.targetLanguage)
+            _ = sourceManager.select(conversion.targetLanguage)
             correctionNotifier.show(original: conversion.original, replacement: conversion.replacement)
             log(
                 kind: .manualCorrection,
@@ -297,8 +306,11 @@ final class InputEngine: KeyboardMonitorDelegate {
             let original = current.visibleText
             guard let alternative = sourceManager.text(for: current.strokes, in: targetLanguage),
                   alternative != original else { return }
-            sourceManager.select(targetLanguage)
-            injector.replace(deleteCount: original.count, with: alternative)
+            guard let context = verifiedCurrentContext(),
+                  injector.replace(original: original, with: alternative, trailingEvent: nil, context: context) else { resetAll(); return }
+            _ = sourceManager.select(targetLanguage)
+            completedField = context.element
+            completedPrefix = String(context.prefix.dropLast(original.count)) + alternative
             correctionNotifier.show(original: original, replacement: alternative)
             lastCompleted = CompletedToken(
                 displayedText: alternative,
@@ -331,11 +343,12 @@ final class InputEngine: KeyboardMonitorDelegate {
             _ = undoLastAutomaticCorrection(application: application)
             return
         }
-        sourceManager.select(completed.alternativeLanguage)
-        injector.replace(
-            deleteCount: completed.displayedText.count + completed.terminator.count,
-            with: completed.alternativeText + completed.terminator
-        )
+        guard let context = verifiedCompletedContext(),
+              injector.replace(original: completed.displayedText + completed.terminator,
+                with: completed.alternativeText + completed.terminator, trailingEvent: nil, context: context) else { resetAll(); return }
+        _ = sourceManager.select(completed.alternativeLanguage)
+        completedPrefix = String(context.prefix.dropLast(completed.displayedText.count + completed.terminator.count))
+            + completed.alternativeText + completed.terminator
         correctionNotifier.show(original: completed.displayedText, replacement: completed.alternativeText)
         log(
             kind: .manualCorrection,
@@ -380,11 +393,10 @@ final class InputEngine: KeyboardMonitorDelegate {
               completed.processIdentifier == pid,
               Date().timeIntervalSince(completed.completedAt) <= 5 else { return false }
 
-        sourceManager.select(completed.alternativeLanguage)
-        injector.replace(
-            deleteCount: completed.displayedText.count + completed.terminator.count,
-            with: completed.alternativeText + completed.terminator
-        )
+        guard let context = verifiedCompletedContext(),
+              injector.replace(original: completed.displayedText + completed.terminator,
+                with: completed.alternativeText + completed.terminator, trailingEvent: nil, context: context) else { resetAll(); return false }
+        _ = sourceManager.select(completed.alternativeLanguage)
         correctionNotifier.show(original: completed.displayedText, replacement: completed.alternativeText)
         log(
             kind: .undone,
@@ -427,8 +439,26 @@ final class InputEngine: KeyboardMonitorDelegate {
     }
 
     private func append(_ stroke: KeyStroke) {
-        if current.isEmpty { lastCompleted = nil }
+        if current.isEmpty {
+            lastCompleted = nil
+            guard let context = readContext(), context.range.length == 0, !context.startsInsideWord else { return }
+            tokenStart = context
+        }
         current.append(stroke)
+        if current.strokes.count > 64 { resetAll() }
+    }
+
+    private func verifiedCurrentContext() -> TextReplacementContext? {
+        guard let start = tokenStart, let context = readContext(), context.range.length == 0,
+              CFEqual(start.element, context.element),
+              context.prefix == start.prefix + current.visibleText else { return nil }
+        return context
+    }
+
+    private func verifiedCompletedContext() -> TextReplacementContext? {
+        guard let field = completedField, let prefix = completedPrefix, let context = readContext(),
+              CFEqual(field, context.element), context.range.length == 0, context.prefix == prefix else { return nil }
+        return context
     }
 
     private func isWordJoiner(_ text: String) -> Bool {
@@ -491,13 +521,18 @@ final class InputEngine: KeyboardMonitorDelegate {
         lastCompleted = nil
         recentLanguages.removeAll(keepingCapacity: true)
         recentTokens.removeAll(keepingCapacity: true)
+        tokenStart = nil
+        completedField = nil
+        completedPrefix = nil
+        shortcutShiftWasDown = false
+        lastShortcutShiftRelease = nil
     }
 
     private func recordToken(_ text: String, language: InputLanguage, terminator: String) {
         if defaults.bool(forKey: PreferenceKey.applicationContext) {
             applicationProfiles.observe(
                 language,
-                applicationBundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                applicationBundleIdentifier: frontmost()?.bundleIdentifier
             )
         }
         recentLanguages.append(language)

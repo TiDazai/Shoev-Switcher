@@ -13,7 +13,8 @@ internal static class NativeMethods
     internal delegate nint HookProc(int code, nint message, nint data);
     [StructLayout(LayoutKind.Sequential)] internal struct KbdLlHookStruct { internal uint vkCode, scanCode, flags, time; internal nuint extraInfo; }
     [StructLayout(LayoutKind.Sequential)] internal struct Input { internal uint type; internal InputUnion data; }
-    [StructLayout(LayoutKind.Explicit)] internal struct InputUnion { [FieldOffset(0)] internal KeybdInput keyboard; }
+    [StructLayout(LayoutKind.Explicit)] internal struct InputUnion { [FieldOffset(0)] internal KeybdInput keyboard; [FieldOffset(0)] internal MouseInput mouse; }
+    [StructLayout(LayoutKind.Sequential)] internal struct MouseInput { internal int dx, dy; internal uint mouseData, flags, time; internal nuint extraInfo; }
     [StructLayout(LayoutKind.Sequential)] internal struct KeybdInput { internal ushort virtualKey, scanCode; internal uint flags, time; internal nuint extraInfo; }
     [StructLayout(LayoutKind.Sequential)] internal struct GuiThreadInfo { internal uint size, flags; internal nint active, focus, capture, menuOwner, moveSize, caret; internal int left, top, right, bottom; }
 
@@ -66,12 +67,12 @@ internal static class NativeMethods
         var languageId = (ushort)((long)GetKeyboardLayout(thread) & 0xFFFF);
         return languageId == 0x0419 ? Language.Russian : Language.English;
     }
-    internal static void Replace(int deleteUnits, string replacement, string delimiter)
+    internal static bool Replace(int deleteUnits, string replacement, string delimiter)
     {
         var inputs = new List<Input>();
         for (var i = 0; i < deleteUnits; i++) AddKey(inputs, VkBack);
         foreach (var c in (replacement + delimiter).AsSpan()) AddUnicode(inputs, c);
-        if (inputs.Count > 0) SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<Input>());
+        return inputs.Count == 0 || SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<Input>()) == (uint)inputs.Count;
     }
     private static void AddKey(List<Input> list, ushort key) { list.Add(Create(key, 0, 0)); list.Add(Create(key, 0, KeyeventfKeyup)); }
     private static void AddUnicode(List<Input> list, char c) { list.Add(Create(0, c, KeyeventfUnicode)); list.Add(Create(0, c, KeyeventfUnicode | KeyeventfKeyup)); }
@@ -107,6 +108,6 @@ internal readonly record struct KeyEvent(uint VirtualKey, uint ScanCode)
         var state = new byte[256]; if (!NativeMethods.GetKeyboardState(state)) return "";
         var thread = NativeMethods.GetWindowThreadProcessId(NativeMethods.GetForegroundWindow(), out _);
         var value = new StringBuilder(8); var count = NativeMethods.ToUnicodeEx(VirtualKey, ScanCode, state, value, value.Capacity, 0, NativeMethods.GetKeyboardLayout(thread));
-        return count > 0 ? value.ToString(0, count) : "";
+        return count > 0 ? value.ToString(0, Math.Min(count, value.Length)) : "";
     }
 }

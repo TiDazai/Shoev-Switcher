@@ -29,15 +29,17 @@ final class SensitiveInputGuard {
 
     private func focusedElementIsSecure(processIdentifier: pid_t) -> Bool {
         let application = AXUIElementCreateApplication(processIdentifier)
+        AXUIElementSetMessagingTimeout(application, 0.02)
         var focusedValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(
             application,
             kAXFocusedUIElementAttribute as CFString,
             &focusedValue
         ) == .success,
-        let focusedValue else { return false }
+        let focusedValue, CFGetTypeID(focusedValue) == AXUIElementGetTypeID() else { return false }
 
-        let focused = unsafeBitCast(focusedValue, to: AXUIElement.self)
+        let focused = focusedValue as! AXUIElement
+        AXUIElementSetMessagingTimeout(focused, 0.02)
         var subroleValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(
             focused,

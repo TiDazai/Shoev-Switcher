@@ -42,6 +42,21 @@ final class JournalStoreTests: XCTestCase {
         wait(for: [loaded], timeout: 3)
     }
 
+    func testFlushPersistsFinalBatchBeforeReopening() throws {
+        let store = try JournalStore(baseDirectory: temporaryDirectory)
+        store.enqueue(JournalEntry(id: 0, createdAt: Date(), applicationBundleIdentifier: nil,
+            applicationName: nil, original: "ghbdtn", replacement: "привет",
+            sourceLanguage: .english, targetLanguage: .russian, kind: .correction))
+        store.flush()
+        let reopened = try JournalStore(baseDirectory: temporaryDirectory)
+        let loaded = expectation(description: "Persisted final batch")
+        reopened.recentEntries { entries in
+            XCTAssertEqual(entries.first?.replacement, "привет")
+            loaded.fulfill()
+        }
+        wait(for: [loaded], timeout: 3)
+    }
+
     func testRulesRoundTrip() throws {
         let store = try JournalStore(baseDirectory: temporaryDirectory)
         let inserted = expectation(description: "Inserted rule")

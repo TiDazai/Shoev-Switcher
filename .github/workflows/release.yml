@@ -1,8 +1,12 @@
-name: Signed release
+name: Build release
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (must match the app version)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -10,15 +14,23 @@ permissions:
 jobs:
   release:
     runs-on: macos-15
+    env:
+      SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+      CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Prepare embedded lexicon
-        run: ./scripts/prepare-lexicon.sh
-
-      - name: Import Developer ID certificate
+        with:
+          ref: ${{ inputs.tag }}
+      - name: Verify release version
         env:
-          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
+          test "$RELEASE_TAG" = "v$version"
+      - name: Import Developer ID certificate
+        if: env.CERTIFICATE_BASE64 != '' && env.SIGN_IDENTITY != ''
+        env:
           CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
         run: |
@@ -31,39 +43,33 @@ jobs:
           security import "$certificate_path" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain_path"
           security list-keychain -d user -s "$keychain_path"
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$keychain_path"
-
-      - name: Test
-        run: swift test
-
-      - name: Build and sign
-        env:
-          SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION }}
-          BUILD_NUMBER: ${{ github.run_number }}
-        run: ./scripts/build-app.sh
-
-      - name: Create DMG
-        env:
-          SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION }}
-        run: ./scripts/create-dmg.sh
-
+      - name: Test and create universal DMG
+        run: |
+          ./scripts/prepare-lexicon.sh
+          swift test
+          ./scripts/create-dmg.sh
       - name: Notarize
+        if: env.CERTIFICATE_BASE64 != '' && env.SIGN_IDENTITY != '' && env.APPLE_ID != ''
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: ./scripts/notarize.sh
-
-      - name: Publish GitHub release
+      - name: Attach verified DMG to draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes || gh release view "$GITHUB_REF_NAME"
-          gh release upload "$GITHUB_REF_NAME" "dist/Shoev-Switcher.dmg" --clobber
+          hdiutil verify dist/Shoev-Switcher.dmg
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes
+          gh release upload "$RELEASE_TAG" dist/Shoev-Switcher.dmg --clobber
 
   windows-release:
+    needs: release
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
@@ -72,16 +78,14 @@ jobs:
       - name: Verify Windows build
         shell: pwsh
         run: |
-          & "dist/windows/Shoev Switcher.exe" --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Windows self-test failed" }
+          $switcherTestProcess = Start-Process -FilePath "dist/windows/Shoev Switcher.exe" -ArgumentList "--self-test" -Wait -PassThru
+          if ($switcherTestProcess.ExitCode -ne 0) { throw "Windows self-test failed" }
       - name: Create Windows archive
         shell: pwsh
         run: Compress-Archive -Path dist/windows/* -DestinationPath dist/Shoev-Switcher-Windows-x64.zip
-      - name: Attach Windows build to release
+      - name: Attach Windows archive
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view $env:GITHUB_REF_NAME 2>$null
-          if ($LASTEXITCODE -ne 0) { gh release create $env:GITHUB_REF_NAME --generate-notes }
-          gh release upload $env:GITHUB_REF_NAME dist/Shoev-Switcher-Windows-x64.zip --clobber
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: gh release upload $env:RELEASE_TAG dist/Shoev-Switcher-Windows-x64.zip --clobber

@@ -1,48 +1,63 @@
-import CoreGraphics
+import AppKit
+import Carbon.HIToolbox
 import Foundation
 
-final class EventInjector {
+protocol TextReplacing {
+    func replace(original: String, with replacement: String, trailingEvent: CGEvent?, context: TextReplacementContext) -> Bool
+}
+
+final class EventInjector: TextReplacing {
     static let syntheticEventMarker: Int64 = 0x53484F4556
 
-    private let source = CGEventSource(stateID: .combinedSessionState)
-
-    func replace(deleteCount: Int, with replacement: String, trailingEvent: CGEvent? = nil) {
-        guard deleteCount >= 0 else { return }
-        for _ in 0..<deleteCount {
-            postKey(keyCode: 51, keyDown: true)
-            postKey(keyCode: 51, keyDown: false)
+    @discardableResult
+    func replace(original: String, with replacement: String, trailingEvent: CGEvent? = nil, context: TextReplacementContext) -> Bool {
+        guard !IsSecureEventInputEnabled(),
+              context.range.length == 0,
+              var range = TextReplacementContext.replacementRange(in: context.text, caret: context.range.location, original: original),
+              let selectedRange = AXValueCreate(.cfRange, &range) else { return false }
+        for attribute in [kAXSelectedTextAttribute, kAXSelectedTextRangeAttribute] {
+            var settable: DarwinBoolean = false
+            guard AXUIElementIsAttributeSettable(context.element, attribute as CFString, &settable) == .success,
+                  settable.boolValue else { return false }
         }
-        postText(replacement)
-        if let trailingEvent, let copied = trailingEvent.copy() {
+        let copied = trailingEvent?.copy()
+        guard trailingEvent == nil || copied != nil,
+              let current = TextReplacementContextReader().read(), current.matches(context) else { return false }
+        guard AXUIElementSetAttributeValue(context.element, kAXSelectedTextRangeAttribute as CFString, selectedRange) == .success else { return false }
+        let selected = TextReplacementContextReader().read()
+        let delimiter = trailingEvent.flatMap(Self.inlineDelimiter)
+        let insertedText = replacement + (delimiter ?? "")
+        guard let selected, CFEqual(selected.element, context.element), selected.text == context.text,
+              selected.range.location == range.location, selected.range.length == range.length,
+              AXUIElementSetAttributeValue(context.element, kAXSelectedTextAttribute as CFString, insertedText as CFString) == .success else {
+            var previous = context.range
+            if let value = AXValueCreate(.cfRange, &previous) {
+                AXUIElementSetAttributeValue(context.element, kAXSelectedTextRangeAttribute as CFString, value)
+            }
+            return false
+        }
+        let expectedText = (context.text as NSString).replacingCharacters(in: NSRange(location: range.location, length: range.length), with: insertedText)
+        guard let after = TextReplacementContextReader().read(), CFEqual(after.element, context.element),
+              after.text == expectedText else { return true }
+        var end = CFRange(location: range.location + insertedText.utf16.count, length: 0)
+        guard let value = AXValueCreate(.cfRange, &end),
+              AXUIElementSetAttributeValue(context.element, kAXSelectedTextRangeAttribute as CFString, value) == .success else { return true }
+        if delimiter == nil, let copied,
+           let final = TextReplacementContextReader().read(), CFEqual(final.element, context.element),
+           final.text == expectedText, final.range.location == end.location, final.range.length == 0 {
             copied.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventMarker)
             copied.post(tap: .cgAnnotatedSessionEventTap)
         }
+        return true
     }
 
-    func insert(_ text: String) {
-        postText(text)
-    }
-
-    private func postKey(keyCode: CGKeyCode, keyDown: Bool) {
-        guard let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: keyDown) else {
-            return
-        }
-        event.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventMarker)
-        event.post(tap: .cgAnnotatedSessionEventTap)
-    }
-
-    private func postText(_ text: String) {
-        let units = Array(text.utf16)
-        guard !units.isEmpty else { return }
-        for keyDown in [true, false] {
-            guard let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: keyDown) else {
-                continue
-            }
-            event.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventMarker)
-            units.withUnsafeBufferPointer { buffer in
-                event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: buffer.baseAddress!)
-            }
-            event.post(tap: .cgAnnotatedSessionEventTap)
-        }
+    static func inlineDelimiter(_ event: CGEvent) -> String? {
+        var length = 0
+        var buffer = [UniChar](repeating: 0, count: 8)
+        event.keyboardGetUnicodeString(maxStringLength: buffer.count, actualStringLength: &length, unicodeString: &buffer)
+        guard length > 0, length <= buffer.count else { return nil }
+        let text = String(utf16CodeUnits: buffer, count: length)
+        return text.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) && !CharacterSet.newlines.contains($0) }
+            ? text : nil
     }
 }

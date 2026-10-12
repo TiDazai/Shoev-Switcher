@@ -18,6 +18,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let identifier = Bundle.main.bundleIdentifier,
+           NSRunningApplication.runningApplications(withBundleIdentifier: identifier)
+            .contains(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
+            NSApp.terminate(nil)
+            return
+        }
         Preferences.registerDefaults()
         journalStore = try? JournalStore()
         if let journalStore {
@@ -63,8 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !keyboardMonitor.start() {
             keyboardMonitor.requestRequiredPermissions()
-            startPermissionWatcher()
         }
+        startPermissionWatcher()
         menuBarController?.refresh()
 
     }
@@ -74,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hoverIndicator?.stop()
         correctionNotifier?.hide()
         applicationProfiles?.flush()
+        journalStore?.flush()
         layoutMemoryController?.stop()
         keyboardMonitor.stop()
     }
@@ -85,10 +92,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 timer.invalidate()
                 return
             }
-            guard self.keyboardMonitor.start() else { return }
+            guard !self.keyboardMonitor.hasRequiredPermissions else { return }
+            _ = self.keyboardMonitor.start()
             self.menuBarController?.refresh()
-            timer.invalidate()
-            self.permissionTimer = nil
         }
     }
 

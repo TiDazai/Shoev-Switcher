@@ -2,6 +2,10 @@ import XCTest
 @testable import ShoevSwitcher
 
 final class InputSourceManagerTests: XCTestCase {
+    func testUnsupportedUnicodeIsPreserved() {
+        let manager = InputSourceManager()
+        XCTAssertEqual(manager.convertedText("🐈İ中", from: .english, to: .russian), "🐈İ中")
+    }
     func testConvertsWholeSelectedTextInBothDirections() {
         let manager = InputSourceManager()
         XCTAssertEqual(

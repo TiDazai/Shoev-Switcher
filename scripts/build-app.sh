@@ -43,9 +43,12 @@ cp "$project_dir/Resources/AppIcon.icns" "$app_bundle/Contents/Resources/AppIcon
 resource_bundle="$(find "$arm_bin" -maxdepth 1 -type d -name 'ShoevSwitcher_*.bundle' -print -quit)"
 if [[ -n "$resource_bundle" ]]; then
   cp -R "$resource_bundle" "$app_bundle/Contents/Resources/"
+else
+  echo "Required embedded resource bundle is missing" >&2
+  exit 1
 fi
 
-build_number="${BUILD_NUMBER:-1}"
+build_number="${BUILD_NUMBER:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$project_dir/Resources/Info.plist")}"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app_bundle/Contents/Info.plist"
 
 if [[ -n "${SIGN_IDENTITY:-}" && "$SIGN_IDENTITY" != "-" ]]; then

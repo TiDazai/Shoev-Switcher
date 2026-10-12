@@ -1,4 +1,5 @@
 import Carbon.HIToolbox
+import ApplicationServices
 import CoreGraphics
 import Foundation
 import os
@@ -19,23 +20,35 @@ final class KeyboardMonitor {
     private var runLoopSource: CFRunLoopSource?
     private var healthTimer: Timer?
     private var keyDownCountSinceTerminator = 0
+    private var pendingMousePoint: CGPoint?
+    private var pendingActivity = false
+    private var deliveryScheduled = false
 
     /// The event tap itself is the source of truth. On recent macOS versions the
     /// TCC preflight calls can lag behind the switches shown in System Settings.
     var hasRequiredPermissions: Bool {
-        eventTap != nil
+        guard let eventTap else { return false }
+        return CFMachPortIsValid(eventTap) && CGEvent.tapIsEnabled(tap: eventTap) && AXIsProcessTrusted()
     }
 
     @discardableResult
     func requestRequiredPermissions() -> Bool {
         let canListen = CGPreflightListenEventAccess() || CGRequestListenEventAccess()
         let canPost = CGPreflightPostEventAccess() || CGRequestPostEventAccess()
-        return canListen && canPost
+        let accessibility = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+        return canListen && canPost && accessibility
     }
 
     @discardableResult
     func start() -> Bool {
-        guard eventTap == nil else { return true }
+        if let eventTap, CFMachPortIsValid(eventTap) {
+            if !CGEvent.tapIsEnabled(tap: eventTap) {
+                delegate?.keyboardMonitorDidResetInput(self)
+                CGEvent.tapEnable(tap: eventTap, enable: true)
+            }
+            return hasRequiredPermissions
+        }
+        if eventTap != nil { stop() }
         let events: [CGEventType] = [
             .keyDown,
             .flagsChanged,
@@ -79,13 +92,20 @@ final class KeyboardMonitor {
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
-        if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: false) }
+        if let eventTap {
+            CGEvent.tapEnable(tap: eventTap, enable: false)
+            CFMachPortInvalidate(eventTap)
+        }
         runLoopSource = nil
         eventTap = nil
+        pendingMousePoint = nil
+        pendingActivity = false
+        delegate?.keyboardMonitorDidResetInput(self)
     }
 
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            delegate?.keyboardMonitorDidResetInput(self)
             if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
@@ -93,29 +113,32 @@ final class KeyboardMonitor {
         if event.getIntegerValueField(.eventSourceUserData) == EventInjector.syntheticEventMarker {
             return Unmanaged.passUnretained(event)
         }
+        // A companion spell checker changed the text; our token is no longer current.
+        if event.getIntegerValueField(.eventSourceUserData) == 0x5350454C4C {
+            delegate?.keyboardMonitorDidResetInput(self)
+            return Unmanaged.passUnretained(event)
+        }
 
         if IsSecureEventInputEnabled() {
             delegate?.keyboardMonitorDidResetInput(self)
+            scheduleDelivery(activity: true)
             return Unmanaged.passUnretained(event)
         }
 
         switch type {
         case .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
             let location = event.location
-            DispatchQueue.main.async { [weak self] in self?.mouseMovedHandler?(location) }
+            scheduleDelivery(point: location)
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             let location = event.location
-            DispatchQueue.main.async { [weak self] in
-                self?.mouseMovedHandler?(location)
-                self?.inputActivityHandler?()
-            }
+            scheduleDelivery(point: location, activity: true)
             delegate?.keyboardMonitorDidResetInput(self)
         case .flagsChanged:
-            DispatchQueue.main.async { [weak self] in self?.inputActivityHandler?() }
+            scheduleDelivery(activity: true)
             let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
             delegate?.keyboardMonitor(self, flagsChanged: event, keyCode: keyCode)
         case .keyDown:
-            DispatchQueue.main.async { [weak self] in self?.inputActivityHandler?() }
+            scheduleDelivery(activity: true)
             let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
             let text = Self.unicodeString(from: event)
             keyDownCountSinceTerminator += 1
@@ -142,7 +165,25 @@ final class KeyboardMonitor {
             guard let self, let eventTap = self.eventTap,
                   !CGEvent.tapIsEnabled(tap: eventTap) else { return }
             self.logger.warning("Keyboard event tap was disabled; enabling it again")
+            self.delegate?.keyboardMonitorDidResetInput(self)
             CGEvent.tapEnable(tap: eventTap, enable: true)
+        }
+    }
+
+    private func scheduleDelivery(point: CGPoint? = nil, activity: Bool = false) {
+        if let point { pendingMousePoint = point }
+        pendingActivity = pendingActivity || activity
+        guard !deliveryScheduled else { return }
+        deliveryScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let point = self.pendingMousePoint
+            let activity = self.pendingActivity
+            self.pendingMousePoint = nil
+            self.pendingActivity = false
+            self.deliveryScheduled = false
+            if let point { self.mouseMovedHandler?(point) }
+            if activity { self.inputActivityHandler?() }
         }
     }
 
@@ -151,7 +192,7 @@ final class KeyboardMonitor {
         var buffer = [UniChar](repeating: 0, count: 8)
         event.keyboardGetUnicodeString(maxStringLength: buffer.count, actualStringLength: &length, unicodeString: &buffer)
         guard length > 0 else { return "" }
-        return String(utf16CodeUnits: buffer, count: length)
+        return String(utf16CodeUnits: buffer, count: min(length, buffer.count))
     }
 }
 
