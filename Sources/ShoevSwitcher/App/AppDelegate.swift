@@ -11,8 +11,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var spellEngine: SpellInputEngine?
     private var coordinator: UnifiedInputCoordinator?
     private var menuBarController: MenuBarController?
-    private var settingsWindowController: SettingsWindowController?
-    private var settingsContent: NSView?
     private var journalWindowController: JournalWindowController?
     private var journalContent: NSView?
     private var applicationWindowController: ApplicationWindowController?
@@ -66,9 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         layoutMemory.start()
 
         model.preferencesChanged = { [weak self] in self?.applyPreferences() }
-        model.settingsView = { [weak self] in self?.makeSettingsContent() ?? NSView() }
         model.journalView = { [weak self] in self?.makeJournalContent() ?? NSView() }
-        model.reloadSettings = { [weak self] in self?.settingsWindowController?.reloadValues() }
         model.reloadJournal = { [weak self] in self?.journalWindowController?.reload() }
         applicationWindowController = ApplicationWindowController(model: model)
 
@@ -115,15 +111,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !self.keyboardMonitor.hasRequiredPermissions { _ = self.keyboardMonitor.start() }
             self.menuBarController?.refresh()
         }
-    }
-    private func makeSettingsContent() -> NSView {
-        if let settingsContent { return settingsContent }
-        let controller = SettingsWindowController(monitor: keyboardMonitor, sourceManager: sourceManager,
-            onSaved: { [weak self] in self?.applyPreferences() })
-        settingsWindowController = controller
-        let content = controller.detachContentView()
-        settingsContent = content
-        return content
     }
     private func makeJournalContent() -> NSView {
         if let journalContent { return journalContent }

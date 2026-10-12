@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.6.0/Shoev-Switcher.dmg"><strong>Скачать для Mac · DMG</strong></a>
+  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.6.1/Shoev-Switcher.dmg"><strong>Скачать для Mac · DMG</strong></a>
   &nbsp; · &nbsp;
   <a href="CHANGELOG.md">Что нового</a>
 </p>
@@ -30,7 +30,7 @@
 
 Shoev Switcher is an offline Russian–English keyboard layout and spelling app for macOS, made by SHOEV SYSTEMS.
 
-Объединённая версия для macOS доступна как [предрелиз 0.6.0](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.6.0). Это первый выпуск с двумя модулями; совместимость текстовых полей зависит от редактора.
+Объединённая версия для macOS доступна как [предрелиз 0.6.1](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.6.1). Это первый выпуск с двумя модулями; совместимость текстовых полей зависит от редактора.
 
 ## Просто продолжай писать
 
@@ -64,7 +64,7 @@ Enter, Shift+Enter и Tab проходят в приложение без пер
 
 ## Установка на Mac
 
-1. Открой [DMG](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.6.0/Shoev-Switcher.dmg) и перетащи приложение в **Applications**.
+1. Открой [DMG](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.6.1/Shoev-Switcher.dmg) и перетащи приложение в **Applications**.
 2. Запусти Shoev Switcher.
 3. Разреши **Мониторинг ввода** и **Универсальный доступ** в настройках macOS.
 4. Убедись, что добавлены русская и английская раскладки.

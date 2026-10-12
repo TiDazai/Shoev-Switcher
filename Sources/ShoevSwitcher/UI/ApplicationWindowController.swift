@@ -25,9 +25,7 @@ final class ApplicationModel: ObservableObject {
     let monitor: KeyboardMonitor
     let sourceManager: InputSourceManager
     var preferencesChanged: () -> Void = {}
-    var settingsView: () -> NSView = { NSView() }
     var journalView: () -> NSView = { NSView() }
-    var reloadSettings: () -> Void = {}
     var reloadJournal: () -> Void = {}
     private var timer: Timer?
     private var observers: [NSObjectProtocol] = []
@@ -134,6 +132,20 @@ private enum Brand {
 private struct ApplicationView: View {
     @ObservedObject var model: ApplicationModel
     @AppStorage(PreferenceKey.enabled) private var switcherEnabled = true
+    @AppStorage(PreferenceKey.automaticCorrection) private var automaticLayout = true
+    @AppStorage(PreferenceKey.manualConversion) private var manualConversion = true
+    @AppStorage(PreferenceKey.manualShortcut) private var manualShortcut = ManualShortcut.rightShift.rawValue
+    @AppStorage(PreferenceKey.phraseContext) private var phraseContext = true
+    @AppStorage(PreferenceKey.applicationContext) private var applicationContext = true
+    @AppStorage(PreferenceKey.rememberApplicationLayout) private var layoutMemory = false
+    @AppStorage(PreferenceKey.automaticLearning) private var learning = true
+    @AppStorage(PreferenceKey.undoAutomaticCorrection) private var undoCorrection = true
+    @AppStorage(PreferenceKey.hoverLanguageIndicator) private var hoverFlag = true
+    @AppStorage(PreferenceKey.correctionNotifications) private var correctionNotifications = true
+    @AppStorage(PreferenceKey.journalEnabled) private var switcherJournal = true
+    @AppStorage(PreferenceKey.fullDiaryEnabled) private var fullDiary = false
+    @AppStorage(PreferenceKey.englishInputSource) private var englishInputSource = ""
+    @AppStorage(PreferenceKey.russianInputSource) private var russianInputSource = ""
     @AppStorage(SpellPreferenceKey.enabled) private var spellEnabled = true
     @AppStorage(SpellPreferenceKey.automaticCorrection) private var correctWords = true
     @AppStorage(SpellPreferenceKey.automaticCapitalization) private var capitalize = true
@@ -142,6 +154,7 @@ private struct ApplicationView: View {
     @AppStorage(SpellPreferenceKey.minimumLength) private var minimumLength = 3
     @AppStorage(SpellPreferenceKey.minimumScore) private var minimumScore = 250
     @State private var exclusions = ""
+    @State private var switcherExclusions = ""
 
     var body: some View {
         HStack(spacing: 0) {
@@ -151,7 +164,7 @@ private struct ApplicationView: View {
                 header
                 switch model.page {
                 case .overview: overview
-                case .switcher: LegacyPane(view: model.settingsView()).onAppear { model.reloadSettings() }
+                case .switcher: switcherSettings
                 case .spell: spellSettings
                 case .journal: LegacyPane(view: model.journalView()).onAppear { model.reloadJournal() }
                 }
@@ -285,25 +298,90 @@ private struct ApplicationView: View {
                     Text("Повышай порог, если появляются ложные исправления. Enter и Tab всегда остаются действиями редактора.")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }.card().disabled(!spellEnabled)
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Исключённые приложения Spell").font(.system(size: 16, weight: .semibold))
-                    Text("Bundle ID, по одному в строке. Эти исключения не меняют настройки Switcher.")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
-                    TextEditor(text: $exclusions).font(.system(size: 12, design: .monospaced)).frame(height: 105)
-                        .padding(8).background(Brand.background).clipShape(RoundedRectangle(cornerRadius: 8))
-                        .accessibilityLabel("Исключённые приложения Spell")
-                    Button("Сохранить исключения") {
-                        let ids = exclusions.split(whereSeparator: \.isNewline)
-                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-                        UserDefaults.standard.set(Array(Set(ids)).sorted(), forKey: SpellPreferenceKey.excludedApplications)
-                        model.preferencesChanged()
-                    }.buttonStyle(.bordered)
-                }.card()
+                exclusionsCard("Spell", text: $exclusions, key: SpellPreferenceKey.excludedApplications)
                 Text(model.diagnostic).font(.system(size: 12)).foregroundStyle(.secondary)
             }
         }.onAppear {
             exclusions = (UserDefaults.standard.stringArray(forKey: SpellPreferenceKey.excludedApplications) ?? []).joined(separator: "\n")
         }
+    }
+
+    private var switcherSettings: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Toggle("Модуль Switcher включён", isOn: $switcherEnabled)
+                    .toggleStyle(.switch).font(.system(size: 16, weight: .semibold))
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Исправление раскладки").font(.system(size: 16, weight: .semibold))
+                    Toggle("Исправлять раскладку автоматически", isOn: $automaticLayout)
+                    Toggle("Учитывать предыдущие слова и частые фразы", isOn: $phraseContext).disabled(!automaticLayout)
+                    Toggle("Учитывать привычный язык каждого приложения", isOn: $applicationContext).disabled(!automaticLayout)
+                    Toggle("Ручная конвертация двойным Shift", isOn: $manualConversion)
+                    Picker("Горячая клавиша", selection: $manualShortcut) {
+                        ForEach(ManualShortcut.allCases, id: \.rawValue) { shortcut in
+                            Text(shortcut.title).tag(shortcut.rawValue)
+                        }
+                    }.disabled(!manualConversion)
+                    Text("Enter и Tab проходят без исправлений. Двойной Shift конвертирует выделение, текущее или последнее слово.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }.card().disabled(!switcherEnabled)
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Интерфейс и поведение").font(.system(size: 16, weight: .semibold))
+                    Toggle("Запоминать раскладку для каждого приложения", isOn: $layoutMemory)
+                    Toggle("Отменять автоисправление клавишей Backspace", isOn: $undoCorrection).disabled(!automaticLayout)
+                    Toggle("Показывать флаг рядом с курсором мыши", isOn: $hoverFlag)
+                    Toggle("Показывать короткое уведомление об исправлении", isOn: $correctionNotifications)
+                }.card().disabled(!switcherEnabled)
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Самообучение и дневник").font(.system(size: 16, weight: .semibold))
+                    Toggle("Учиться после повторных ручных исправлений", isOn: $learning).disabled(!manualConversion)
+                    Toggle("Сохранять исправления Switcher в общем дневнике", isOn: $switcherJournal)
+                    Toggle("Сохранять все завершённые слова", isOn: $fullDiary).disabled(!switcherJournal)
+                    Text("Полный дневник дополнительно сохраняет набранные слова. Данные остаются на этом Mac и шифруются.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }.card().disabled(!switcherEnabled)
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Источники ввода").font(.system(size: 16, weight: .semibold))
+                    sourcePicker("English", language: .english, selection: $englishInputSource)
+                    sourcePicker("Русский", language: .russian, selection: $russianInputSource)
+                    Text("Доступны только включённые в macOS русские и английские раскладки.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }.card()
+                exclusionsCard("Switcher", text: $switcherExclusions, key: PreferenceKey.excludedApplications)
+                if !model.ready {
+                    Button("Выдать системные разрешения…") { model.requestPermissions() }.buttonStyle(.bordered)
+                }
+            }
+        }.onAppear {
+            switcherExclusions = (UserDefaults.standard.stringArray(forKey: PreferenceKey.excludedApplications) ?? []).joined(separator: "\n")
+        }
+    }
+
+    private func sourcePicker(_ title: String, language: InputLanguage, selection: Binding<String>) -> some View {
+        let sources = model.sourceManager.allSources(for: language)
+        return Picker(title, selection: selection) {
+            if !sources.contains(where: { $0.identifier == selection.wrappedValue }) {
+                Text(sources.isEmpty ? "Добавьте раскладку в macOS" : "Автоматически").tag(selection.wrappedValue)
+            }
+            ForEach(sources, id: \.identifier) { source in Text(source.name).tag(source.identifier) }
+        }
+    }
+
+    private func exclusionsCard(_ module: String, text: Binding<String>, key: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Исключённые приложения " + module).font(.system(size: 16, weight: .semibold))
+            Text("Bundle ID, по одному в строке. Исключения другого модуля не изменяются.")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+            TextEditor(text: text).font(.system(size: 12, design: .monospaced)).frame(height: 105)
+                .padding(8).background(Brand.background).clipShape(RoundedRectangle(cornerRadius: 8))
+                .accessibilityLabel("Исключённые приложения " + module)
+            Button("Сохранить исключения") {
+                let ids = text.wrappedValue.split(whereSeparator: \.isNewline)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                UserDefaults.standard.set(Array(Set(ids)).sorted(), forKey: key)
+                model.preferencesChanged()
+            }.buttonStyle(.bordered)
+        }.card()
     }
 }
 
