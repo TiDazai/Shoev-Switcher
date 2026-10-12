@@ -28,9 +28,9 @@
 
 # Shoev Switcher — автоматический переключатель раскладки
 
-Разработано компанией **SHOEV SYSTEMS**. Автор — **Тимур Шоев / Shoev Timur (Timur Shoev)**.
+Разработано компанией **SHOEV SYSTEMS**. Автор — **Shoev Timur (TiDazai)**.
 
-Shoev Switcher is an offline Russian–English keyboard layout switcher for macOS and Windows, made by SHOEV SYSTEMS and Timur Shoev (Shoev Timur).
+Shoev Switcher is an offline Russian–English keyboard layout switcher for macOS and Windows, made by SHOEV SYSTEMS.
 
 ## Просто продолжай писать
 
@@ -46,9 +46,9 @@ Shoev Switcher распознаёт слово, набранное в невер
 
 Enter, Shift+Enter и Tab проходят в приложение без перехвата: отправку сообщения, перенос строки и переход между полями определяет сам редактор. Автоматическое исправление выполняется на пробеле или знаке препинания, не на Enter.
 
-## SHOEV SYSTEMS · Тимур Шоев
+## SHOEV SYSTEMS
 
-**Shoev Timur / Timur Shoev / Тимур Шоев** — автор приложений SHOEV SYSTEMS для работы с русским и английским текстом:
+Приложения SHOEV SYSTEMS для работы с русским и английским текстом:
 
 - **Shoev Switcher** — исправление неверной раскладки и автоматическое переключение RU ↔ EN.
 - **[Shoev Spell](https://github.com/TiDazai/Shoev-Spell)** — исправление опечаток, заглавные буквы и помощь с русской пунктуацией.

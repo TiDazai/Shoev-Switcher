@@ -14,7 +14,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Version>0.5.3</Version>
     <Company>SHOEV SYSTEMS</Company>
-    <Authors>Тимур Шоев / Shoev Timur</Authors>
+    <Authors>Shoev Timur (TiDazai)</Authors>
     <Copyright>Copyright © 2026 SHOEV SYSTEMS</Copyright>
   </PropertyGroup>
   <ItemGroup>
