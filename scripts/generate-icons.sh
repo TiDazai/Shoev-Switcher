@@ -3,7 +3,6 @@ set -euo pipefail
 
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 source_logo="$project_dir/Resources/Brand/sswitcher-logo.png"
-menu_master="$project_dir/Resources/Brand/MenuBarIcon-master.png"
 iconset_dir="$project_dir/.build/generated-icons/AppIcon.iconset"
 
 mkdir -p "$iconset_dir" "$project_dir/Sources/ShoevSwitcher/Resources"
@@ -26,8 +25,9 @@ do
 done
 
 iconutil -c icns "$iconset_dir" -o "$project_dir/Resources/AppIcon.icns"
-sips -z 36 36 "$menu_master" \
+sips -z 36 36 "$source_logo" \
   --out "$project_dir/Sources/ShoevSwitcher/Resources/MenuBarIcon.png" >/dev/null
+swift "$project_dir/scripts/generate-windows-icon.swift" "$iconset_dir" "$project_dir/windows/ShoevSwitcher.Windows/app.ico"
 
 echo "$project_dir/Resources/AppIcon.icns"
 echo "$project_dir/Sources/ShoevSwitcher/Resources/MenuBarIcon.png"

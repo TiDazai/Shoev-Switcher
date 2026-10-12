@@ -62,7 +62,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         if let button = statusItem.button {
             let image = Bundle.module.url(forResource: "MenuBarIcon", withExtension: "png")
                 .flatMap(NSImage.init(contentsOf:))
-            image?.isTemplate = true
+            image?.isTemplate = false
+            button.contentTintColor = nil
             image?.size = NSSize(width: 18, height: 18)
             image?.accessibilityDescription = "Shoev Switcher"
             button.image = image ?? NSImage(
