@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/TiDazai/Shoev-Switcher/actions/workflows/ci.yml"><img src="https://github.com/TiDazai/Shoev-Switcher/actions/workflows/ci.yml/badge.svg" alt="macOS CI"></a>
-  <a href="https://github.com/TiDazai/Shoev-Switcher/releases"><img src="https://img.shields.io/github/v/release/TiDazai/Shoev-Switcher?color=d9ad55&amp;labelColor=591124&amp;label=release" alt="Release"></a>
+  <a href="https://github.com/TiDazai/Shoev-Switcher/releases"><img src="https://img.shields.io/github/v/release/TiDazai/Shoev-Switcher?include_prereleases&amp;color=d8bd7d&amp;labelColor=23272c&amp;label=release" alt="Release"></a>
   <img src="https://img.shields.io/badge/macOS-13%2B-303030" alt="macOS 13+">
   <img src="https://img.shields.io/badge/Swift-native-d9ad55?labelColor=591124" alt="Native Swift">
 </p>
