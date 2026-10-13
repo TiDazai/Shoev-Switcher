@@ -63,10 +63,17 @@ final class AccessibilityReplacementTests: XCTestCase {
         let editor = DeferredEditor()
         editor.ignoredCaretWrites = 100
         let injector = editor.injector()
-        let finished = expectation(description: "no false caret confirmation")
-        finished.isInverted = true
-        editor.schedule(injector, completion: { finished.fulfill() })
-        wait(for: [finished], timeout: 0.2)
+        let exhausted = expectation(description: "all eight caret attempts completed")
+        editor.onIgnoredCaretWrite = {
+            if editor.caretWrites == 8 { exhausted.fulfill() }
+        }
+        var completed = false
+        editor.schedule(injector, completion: { completed = true })
+        // A loaded CI runner need not execute eight main-queue ticks within
+        // 200 ms. Wait for the observed limit, not an assumed wall-clock speed.
+        wait(for: [exhausted], timeout: 3)
+        XCTAssertFalse(completed)
+        editor.onIgnoredCaretWrite = nil
         XCTAssertEqual(editor.text, "я привет ")
         XCTAssertEqual(editor.range.location, "я привет".utf16.count)
         XCTAssertEqual(editor.caretWrites, 8)
