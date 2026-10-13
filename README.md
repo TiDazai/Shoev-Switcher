@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.8.1"><strong>Shoev Switcher 0.8.1 · macOS 26+</strong></a>
+  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.8.1/Shoev-Switcher.dmg"><strong>Скачать 0.8.1 для macOS 26+ · DMG</strong></a>
   &nbsp; · &nbsp;
   <a href="CHANGELOG.md">Что нового</a>
 </p>
@@ -79,9 +79,7 @@ Enter, Shift+Enter и Tab проходят в приложение без пер
 
 ## Установка на Mac
 
-DMG пока не прикреплён к [предрелизу 0.8.1](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.8.1). После его добавления установка выполняется так:
-
-1. Скачай DMG из раздела **Assets** на странице выпуска, открой его и перетащи приложение в **Applications**.
+1. Скачай [DMG версии 0.8.1 для macOS 26+](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.8.1/Shoev-Switcher.dmg), открой его и перетащи приложение в **Applications**.
 2. Запусти Shoev Switcher.
 3. Разреши **Мониторинг ввода** и **Универсальный доступ** в настройках macOS.
 4. Убедись, что добавлены русская и английская раскладки.
