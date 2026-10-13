@@ -158,6 +158,30 @@ struct PaperBackground: View {
     }
 }
 
+struct PaperCatLogo: View {
+    let width: CGFloat
+    let height: CGFloat
+    private let edgeOffsets: [CGSize] = [
+        CGSize(width: -0.75, height: 0), CGSize(width: 0.75, height: 0),
+        CGSize(width: 0, height: -0.75), CGSize(width: 0, height: 0.75)
+    ]
+    var body: some View {
+        if let cat = Brand.catImage {
+            ZStack {
+                // A thin paper-cut edge, following the cat's alpha, not a backing tile.
+                ForEach(edgeOffsets.indices, id: \.self) { index in
+                    Image(nsImage: cat).resizable().renderingMode(.template).scaledToFit()
+                        .foregroundStyle(Brand.ink.opacity(0.65)).offset(edgeOffsets[index])
+                }
+                Image(nsImage: cat).resizable().scaledToFit()
+            }
+            .frame(width: width, height: height)
+            .shadow(color: Brand.ink.opacity(0.16), radius: 1.5, x: 0, y: 1.5)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
 private struct ApplicationView: View {
     @ObservedObject var model: ApplicationModel
     @AppStorage(PreferenceKey.enabled) private var switcherEnabled = true
@@ -213,7 +237,7 @@ private struct ApplicationView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 26) {
             HStack(spacing: 12) {
-                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 48, height: 48)
+                PaperCatLogo(width: 48, height: 48)
                 Text("Shoev Switcher").font(.system(size: 15, weight: .semibold, design: .rounded)).lineLimit(1)
             }
             VStack(spacing: 7) {
@@ -238,60 +262,30 @@ private struct ApplicationView: View {
                 }
             }
             Spacer()
-            VStack(alignment: .leading, spacing: 8) {
-                Label(model.ready ? "Доступ готов" : "Нужны разрешения", systemImage: model.ready ? "checkmark.shield" : "exclamationmark.shield")
-                    .foregroundStyle(model.ready ? Brand.accent : Brand.warning).font(.system(size: 12))
-                Text("RU / EN · Локальная обработка").font(.system(size: 11)).foregroundStyle(Brand.secondary)
-                Text("Created by Shoev Systems").font(.system(size: 11)).foregroundStyle(Brand.secondary)
-                Text("v" + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
-                    .font(.system(size: 10, design: .monospaced)).foregroundStyle(Brand.secondary)
-            }
+            Text("Created by Shoev Systems").font(.system(size: 11)).foregroundStyle(Brand.secondary)
         }.padding(22).frame(width: 232)
             .background(PaperBackground(tint: Brand.panel, textureOpacity: 0.35))
     }
 
     private var header: some View {
         HStack(spacing: 20) {
-            VStack(alignment: .leading, spacing: 8) {
-                if model.page == .overview {
-                    Text("RU / EN · SWITCHER + SPELL")
-                        .font(.system(size: 10, weight: .semibold)).tracking(2).foregroundStyle(Brand.accent)
-                }
-                Text(model.page == .overview ? "Shoev Switcher" : model.page.rawValue)
-                    .font(.system(size: 30, weight: .semibold, design: .serif))
-                Text(subtitle).font(.system(size: 13)).foregroundStyle(Brand.secondary)
-            }
+            Text(model.page == .overview ? "Shoev Switcher" : model.page.rawValue)
+                .font(.system(size: 30, weight: .semibold, design: .serif))
             Spacer(minLength: 0)
-            if model.page == .overview, let cat = Brand.catImage {
-                Image(nsImage: cat).resizable().scaledToFit().frame(width: 82, height: 98)
-                    .accessibilityHidden(true)
+            if model.page == .overview {
+                PaperCatLogo(width: 82, height: 98)
             }
         }
     }
-    private var subtitle: String {
-        switch model.page {
-        case .overview: return "Правильная раскладка. Чистый текст. Одно приложение."
-        case .switcher: return "Раскладки, контекст, горячие клавиши и исключения Switcher."
-        case .spell: return "Независимые настройки орфографии, регистра и пунктуации."
-        case .journal: return "История исправлений и их подтверждённые результаты."
-        case .diary: return "Только личные правила и проверенное самообучение."
-        case .dictionary: return "Русский и английский корпус. Ваши слова — отдельно отмечены."
-        }
-    }
-
     private var overview: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .top, spacing: 16) {
-                    moduleCard("Switcher", symbol: "arrow.left.arrow.right", text: "Исправляет слова в неверной раскладке и переключает русский и английский.", enabled: $switcherEnabled, page: .switcher)
-                    moduleCard("Spell", symbol: "text.badge.checkmark", text: "Исправляет опечатки, заглавные буквы и помогает с русской пунктуацией.", enabled: $spellEnabled, page: .spell)
+                    moduleCard("Switcher", symbol: "arrow.left.arrow.right", enabled: $switcherEnabled, page: .switcher)
+                    moduleCard("Spell", symbol: "text.badge.checkmark", enabled: $spellEnabled, page: .spell)
                 }
                 if model.standaloneSpellRunning { standaloneWarning }
                 VStack(alignment: .leading, spacing: 14) {
-                    Label("Одна система ввода", systemImage: "keyboard").font(.system(size: 16, weight: .semibold))
-                    Text("Сначала проверяется раскладка, затем орфография. Одна база слов, один обработчик клавиатуры. Модули включаются независимо.")
-                        .font(.system(size: 13)).foregroundStyle(Brand.secondary)
-                    Divider()
                     HStack {
                         Label("Текущая раскладка", systemImage: "globe")
                         Spacer()
@@ -307,12 +301,10 @@ private struct ApplicationView: View {
                         Button("Выдать системные разрешения…") { model.requestPermissions() }.buttonStyle(.borderedProminent)
                     }
                 }.card()
-                Text("Пароли и защищённые поля не обрабатываются. Закрытие этого окна не останавливает приложение — кошка остаётся в строке меню.")
-                    .font(.system(size: 12)).foregroundStyle(Brand.secondary)
             }
         }
     }
-    private func moduleCard(_ name: String, symbol: String, text: String, enabled: Binding<Bool>, page: ApplicationPage) -> some View {
+    private func moduleCard(_ name: String, symbol: String, enabled: Binding<Bool>, page: ApplicationPage) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(Brand.accent).frame(width: 32, height: 32)
@@ -320,10 +312,6 @@ private struct ApplicationView: View {
                 Toggle(name + " включён", isOn: enabled).labelsHidden().toggleStyle(.switch)
             }
             Text(name).font(.system(size: 23, weight: .semibold, design: .serif))
-            Text(text).font(.system(size: 13)).foregroundStyle(Brand.secondary).frame(minHeight: 54, alignment: .topLeading)
-            Text(!enabled.wrappedValue ? "Выключен" : !model.ready ? "Ожидает разрешений" :
-                page == .spell && model.standaloneSpellRunning ? "Пауза: отдельный Spell" : "Включён")
-                .font(.system(size: 12, weight: .medium)).foregroundStyle(enabled.wrappedValue ? Brand.accent : Brand.secondary)
             Button("Настроить " + name) { model.page = page }.buttonStyle(.bordered)
         }.frame(maxWidth: .infinity, alignment: .leading).card()
     }
@@ -331,8 +319,6 @@ private struct ApplicationView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Запущен отдельный Shoev Spell", systemImage: "exclamationmark.triangle")
                 .font(.system(size: 14, weight: .semibold)).foregroundStyle(Brand.accent)
-            Text("Встроенный Spell временно не исправляет текст, чтобы два приложения не мешали друг другу. Отдельное приложение и его данные сохранены.")
-                .font(.system(size: 12)).foregroundStyle(Brand.secondary)
             Button("Завершить отдельный Spell") { model.stopStandaloneSpell() }.buttonStyle(.bordered)
         }.card()
     }
@@ -351,11 +337,8 @@ private struct ApplicationView: View {
                     Divider()
                     Stepper("Минимальная длина слова: \(minimumLength)", value: $minimumLength, in: 3...8)
                     Stepper("Порог уверенности: \(minimumScore)", value: $minimumScore, in: 250...800, step: 25)
-                    Text("Повышай порог, если появляются ложные исправления. Enter и Tab всегда остаются действиями редактора.")
-                        .font(.system(size: 12)).foregroundStyle(Brand.secondary)
                 }.card().disabled(!spellEnabled)
                 exclusionsCard("Spell", text: $exclusions, key: SpellPreferenceKey.excludedApplications)
-                Text(model.diagnostic).font(.system(size: 12)).foregroundStyle(Brand.secondary)
             }
         }.onAppear {
             exclusions = (UserDefaults.standard.stringArray(forKey: SpellPreferenceKey.excludedApplications) ?? []).joined(separator: "\n")
@@ -378,8 +361,6 @@ private struct ApplicationView: View {
                             Text(shortcut.title).tag(shortcut.rawValue)
                         }
                     }.disabled(!manualConversion)
-                    Text("Enter и Tab проходят без исправлений. Двойной Shift конвертирует выделение, текущее или последнее слово.")
-                        .font(.system(size: 12)).foregroundStyle(Brand.secondary)
                 }.card().disabled(!switcherEnabled)
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Интерфейс и поведение").font(.system(size: 16, weight: .semibold))
@@ -393,15 +374,11 @@ private struct ApplicationView: View {
                     Toggle("Самообучение обоих модулей по подтверждённым повторениям", isOn: $learning)
                     Toggle("Сохранять исправления Switcher в журнале", isOn: $switcherJournal).disabled(!switcherEnabled)
                     Toggle("Сохранять все завершённые слова", isOn: $fullDiary).disabled(!switcherEnabled || !switcherJournal)
-                    Text("Полная история дополнительно сохраняет набранные слова. По умолчанию выключена. Дневник содержит только личные правила.")
-                        .font(.system(size: 12)).foregroundStyle(Brand.secondary)
                 }.card()
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Источники ввода").font(.system(size: 16, weight: .semibold))
                     sourcePicker("English", language: .english, selection: $englishInputSource)
                     sourcePicker("Русский", language: .russian, selection: $russianInputSource)
-                    Text("Доступны только включённые в macOS русские и английские раскладки.")
-                        .font(.system(size: 12)).foregroundStyle(Brand.secondary)
                 }.card()
                 exclusionsCard("Switcher", text: $switcherExclusions, key: PreferenceKey.excludedApplications)
                 if !model.ready {
@@ -426,8 +403,6 @@ private struct ApplicationView: View {
     private func exclusionsCard(_ module: String, text: Binding<String>, key: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Исключённые приложения " + module).font(.system(size: 16, weight: .semibold))
-            Text("Bundle ID, по одному в строке. Исключения другого модуля не изменяются.")
-                .font(.system(size: 12)).foregroundStyle(Brand.secondary)
             TextEditor(text: text).font(.system(size: 12, design: .monospaced)).frame(height: 105)
                 .padding(8).background(Brand.background).clipShape(RoundedRectangle(cornerRadius: 8))
                 .accessibilityLabel("Исключённые приложения " + module)

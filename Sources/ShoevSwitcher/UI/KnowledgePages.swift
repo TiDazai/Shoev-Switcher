@@ -167,8 +167,6 @@ struct KnowledgePageView: View {
 
     private var journal: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("История событий — не правила. Удаление или отмена меняет статус исправления и не обучает приложение само по себе.")
-                .font(.system(size: 13)).foregroundStyle(Brand.secondary)
             HStack {
                 TextField("Поиск по слову или приложению", text: $journalQuery).textFieldStyle(.roundedBorder)
                 Picker("Модуль", selection: $journalModule) {
@@ -211,13 +209,6 @@ struct KnowledgePageView: View {
                 Button("Экспорт…") { knowledge.exportDiary() }
             }
             Toggle("Самообучение обоих модулей", isOn: $learning).toggleStyle(.switch)
-                .help("Выключение останавливает новое обучение. Уже созданные правила можно отключать отдельно.")
-            Text("Здесь только ваши правила: созданные вручную или выученные после трёх подтверждённых повторений. Базовые алгоритмы и слова сюда не копируются.")
-                .font(.system(size: 13)).foregroundStyle(Brand.secondary)
-            if knowledge.rules.contains(where: { $0.origin == .learning && $0.module == nil && !$0.isEnabled }) {
-                Text("Непроверенные автоматические правила прежней версии сохранены, но приостановлены. Проверь их и включи только нужные.")
-                    .font(.system(size: 12)).foregroundStyle(Brand.warning)
-            }
             Table(diaryRows, selection: $ruleSelection) {
                 TableColumn("Слово / фраза", value: \.pattern)
                 TableColumn("Действие") { Text($0.kind == .convert ? "→ " + ($0.replacement ?? "—") : "Не менять") }
@@ -234,7 +225,6 @@ struct KnowledgePageView: View {
             }.font(.system(size: 12))
             if showObservations {
                 VStack(alignment: .leading, spacing: 7) {
-                    Text("Наблюдение ещё не правило. Быстрые повторы, удалённые результаты и автоматические исправления не считаются подтверждениями.").font(.system(size: 11)).foregroundStyle(Brand.secondary)
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 8) {
                             ForEach(knowledge.observations) { entry in
@@ -266,8 +256,6 @@ struct KnowledgePageView: View {
                     .labelsHidden().frame(width: 160)
                 if dictionary.loading { ProgressView().controlSize(.small) }
             }
-            Text("Весь встроенный корпус доступен постранично. Личные слова отмечены звездой и полужирным начертанием; у них указан источник и область применения. Встроенная база не изменяется.")
-                .font(.system(size: 12)).foregroundStyle(Brand.secondary)
             Table(dictionary.page.rows, selection: $wordSelection) {
                 TableColumn("Слово") { row in
                     HStack { if !row.personal.isEmpty { Image(systemName: "star.fill").foregroundStyle(Brand.accent).font(.system(size: 10)) }
@@ -289,7 +277,6 @@ struct KnowledgePageView: View {
                 Button("Удалить личную запись", role: .destructive) {
                     if let row = dictionary.page.rows.first(where: { $0.id == wordSelection }), let word = row.personal.first { knowledge.removeWord(word) }
                 }.disabled(dictionary.page.rows.first(where: { $0.id == wordSelection })?.personal.isEmpty != false)
-                    .help("Удаляется одна личная запись. Связанное правило отключается или удаляется отдельно в дневнике.")
             }.font(.system(size: 12))
         }
         .onChange(of: dictionary.language) { _, _ in wordSelection = nil; dictionary.reload(words: knowledge.words) }
@@ -329,7 +316,6 @@ private struct RuleEditorView: View {
             }
             Picker("Модуль", selection: $module) { Text("Оба").tag(CorrectionModule?.none); Text("Switcher").tag(CorrectionModule?.some(.switcher)); Text("Spell").tag(CorrectionModule?.some(.spell)) }
             TextField("Bundle ID приложения — пусто для всех", text: $application).textFieldStyle(.roundedBorder)
-            Text("Автоматические правила применяются к отдельному слову. Ручное правило важнее самообучения; слово из него отмечается в личном словаре с той же областью применения.").font(.system(size: 12)).foregroundStyle(Brand.secondary)
             HStack { Spacer(); Button("Отмена") { dismiss() }; Button("Сохранить") { submit() }.keyboardShortcut(.defaultAction)
                 .disabled(pattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pattern.trimmingCharacters(in: .whitespacesAndNewlines).contains(where: { $0.isWhitespace }) || (kind == .convert && replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)) }
         }.padding(28).frame(width: 600).background(PaperBackground(tint: Brand.panel, textureOpacity: 0.25)).foregroundStyle(Brand.ink).tint(Brand.accent).preferredColorScheme(.light)
@@ -355,7 +341,6 @@ private struct WordEditorView: View {
             Text("Добавить личное слово").font(.title2)
             Picker("Язык", selection: $language) { Text("Русский").tag(InputLanguage.russian); Text("English").tag(InputLanguage.english) }.pickerStyle(.segmented)
             TextField("Имя, название или слово", text: $word).textFieldStyle(.roundedBorder)
-            Text("Это явное подтверждение правильного написания. Встроенный словарь останется нетронутым.").font(.system(size: 12)).foregroundStyle(Brand.secondary)
             HStack { Spacer(); Button("Отмена") { dismiss() }; Button("Добавить") { save(word, language); dismiss() }
                 .keyboardShortcut(.defaultAction).disabled(PersonalWordValidation.normalized(word, language: language) == nil) }
         }.padding(28).frame(width: 450).background(PaperBackground(tint: Brand.panel, textureOpacity: 0.25)).foregroundStyle(Brand.ink).tint(Brand.accent).preferredColorScheme(.light)
