@@ -332,7 +332,7 @@ private struct RuleEditorView: View {
             Text("Автоматические правила применяются к отдельному слову. Ручное правило важнее самообучения; слово из него отмечается в личном словаре с той же областью применения.").font(.system(size: 12)).foregroundStyle(Brand.secondary)
             HStack { Spacer(); Button("Отмена") { dismiss() }; Button("Сохранить") { submit() }.keyboardShortcut(.defaultAction)
                 .disabled(pattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pattern.trimmingCharacters(in: .whitespacesAndNewlines).contains(where: { $0.isWhitespace }) || (kind == .convert && replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)) }
-        }.padding(28).frame(width: 600).background(Brand.panel).foregroundStyle(Brand.ink).tint(Brand.accent).preferredColorScheme(.light)
+        }.padding(28).frame(width: 600).background(PaperBackground(tint: Brand.panel, textureOpacity: 0.25)).foregroundStyle(Brand.ink).tint(Brand.accent).preferredColorScheme(.light)
     }
     private func submit() {
         var value = original
@@ -358,6 +358,6 @@ private struct WordEditorView: View {
             Text("Это явное подтверждение правильного написания. Встроенный словарь останется нетронутым.").font(.system(size: 12)).foregroundStyle(Brand.secondary)
             HStack { Spacer(); Button("Отмена") { dismiss() }; Button("Добавить") { save(word, language); dismiss() }
                 .keyboardShortcut(.defaultAction).disabled(PersonalWordValidation.normalized(word, language: language) == nil) }
-        }.padding(28).frame(width: 450).background(Brand.panel).foregroundStyle(Brand.ink).tint(Brand.accent).preferredColorScheme(.light)
+        }.padding(28).frame(width: 450).background(PaperBackground(tint: Brand.panel, textureOpacity: 0.25)).foregroundStyle(Brand.ink).tint(Brand.accent).preferredColorScheme(.light)
     }
 }

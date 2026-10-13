@@ -50,7 +50,15 @@ cp "$project_dir/Resources/AppIcon.icns" "$app_bundle/Contents/Resources/AppIcon
 
 resource_bundle="$(find "$arm_bin" -maxdepth 1 -type d -name 'ShoevSwitcher_*.bundle' -print -quit)"
 if [[ -n "$resource_bundle" ]]; then
-  cp -R "$resource_bundle" "$app_bundle/Contents/Resources/"
+  # SwiftPM can retain removed assets after an incremental build. Stage only
+  # the current flat resource inputs, using their processed build outputs.
+  destination_bundle="$app_bundle/Contents/Resources/$(basename "$resource_bundle")"
+  mkdir -p "$destination_bundle"
+  for resource_input in "$project_dir/Sources/ShoevSwitcher/Resources/"*; do
+    [[ -f "$resource_input" ]] || continue
+    resource_name="$(basename "$resource_input")"
+    cp "$resource_bundle/$resource_name" "$destination_bundle/$resource_name"
+  done
 else
   echo "Required embedded resource bundle is missing" >&2
   exit 1

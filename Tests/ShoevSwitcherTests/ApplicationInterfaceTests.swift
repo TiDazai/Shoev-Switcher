@@ -20,12 +20,21 @@ final class ApplicationInterfaceTests: XCTestCase {
         XCTAssertNotNil(controller.window?.contentView)
         controller.window?.close()
     }
-    func testPlatinumAssetsAreBundledAndCached() {
+    func testPaperAssetsAreBundledAndCached() {
         XCTAssertNotNil(Brand.surfaceImage)
         XCTAssertNotNil(Brand.catImage)
         XCTAssertTrue(Brand.surfaceImage === Brand.surfaceImage)
         XCTAssertGreaterThan(Brand.surfaceImage?.size.width ?? 0, 1000)
         XCTAssertGreaterThan(Brand.catImage?.size.height ?? 0, 500)
+    }
+    func testCatLogoHasNoOpaqueSquareBackground() throws {
+        let image = try XCTUnwrap(Brand.catImage)
+        let data = try XCTUnwrap(image.tiffRepresentation)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: data))
+        XCTAssertTrue(bitmap.hasAlpha)
+        for (x, y) in [(0, 0), (bitmap.pixelsWide - 1, 0), (0, bitmap.pixelsHigh - 1), (bitmap.pixelsWide - 1, bitmap.pixelsHigh - 1)] {
+            XCTAssertEqual(try XCTUnwrap(bitmap.colorAt(x: x, y: y)).alphaComponent, 0, accuracy: 0.001)
+        }
     }
     func testLightThemeTextContrast() {
         func luminance(_ color: SwiftUI.Color) -> Double {

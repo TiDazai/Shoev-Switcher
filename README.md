@@ -8,9 +8,9 @@
 
 <p align="center">
   <a href="https://github.com/TiDazai/Shoev-Switcher/actions/workflows/ci.yml"><img src="https://github.com/TiDazai/Shoev-Switcher/actions/workflows/ci.yml/badge.svg" alt="macOS CI"></a>
-  <a href="https://github.com/TiDazai/Shoev-Switcher/releases"><img src="https://img.shields.io/github/v/release/TiDazai/Shoev-Switcher?include_prereleases&amp;color=b8c1ca&amp;labelColor=38424e&amp;label=release" alt="Release"></a>
+  <a href="https://github.com/TiDazai/Shoev-Switcher/releases"><img src="https://img.shields.io/github/v/release/TiDazai/Shoev-Switcher?include_prereleases&amp;color=d8c7a5&amp;labelColor=59422f&amp;label=release" alt="Release"></a>
   <img src="https://img.shields.io/badge/macOS-26%2B-303030" alt="macOS 26+">
-  <img src="https://img.shields.io/badge/Swift-native-b8c1ca?labelColor=38424e" alt="Native Swift">
+  <img src="https://img.shields.io/badge/Swift-native-d8c7a5?labelColor=59422f" alt="Native Swift">
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.8.0/Shoev-Switcher.dmg"><strong>Скачать для macOS 26+ · DMG</strong></a>
+  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.9.0/Shoev-Switcher.dmg"><strong>Скачать для macOS 26+ · DMG</strong></a>
   &nbsp; · &nbsp;
   <a href="CHANGELOG.md">Что нового</a>
 </p>
@@ -30,11 +30,11 @@
 
 Shoev Switcher is an offline Russian–English keyboard layout and spelling app for macOS, made by SHOEV SYSTEMS.
 
-Shoev Switcher предназначен только для **macOS 26 и новее**. Текущая версия доступна как [предрелиз 0.8.0](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.8.0) с бело-платиновым оформлением. Исправление при обычном наборе в Microsoft Word было проверено в 0.7.1; совместимость других текстовых полей зависит от редактора. Работа в поле ввода Codex не подтверждена.
+Shoev Switcher предназначен только для **macOS 26 и новее**. Текущая версия доступна как [предрелиз 0.9.0](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.9.0) с пергаментным оформлением. Исправление при обычном наборе в Microsoft Word было проверено в 0.7.1; совместимость других текстовых полей зависит от редактора. Работа в поле ввода Codex не подтверждена.
 
 ## Просто продолжай писать
 
-Shoev Switcher для macOS объединяет два независимых модуля в одном приложении. Белая керамика, шлифованная платина, светлая металлическая фактура и рельефная кошка — новый облик приложения. Статичная текстура не использует анимацию. В строке меню — только кошка, без подложки; через неё можно открыть окно или включить и выключить модули.
+Shoev Switcher для macOS объединяет два независимых модуля в одном приложении. Тёплый пергамент, натуральная фактура бумаги, чернильный текст и карточки-листы — новый облик приложения. Логотип — белая бумажная кошка Shoev Systems без стрелок и квадратной подложки, в том числе на иконке приложения. Статичная текстура не использует анимацию. В строке меню — только кошка, без подложки; через неё можно открыть окно или включить и выключить модули.
 
 | Модуль | Что делает |
 | --- | --- |
@@ -64,7 +64,7 @@ Enter, Shift+Enter и Tab проходят в приложение без пер
 
 ## Установка на Mac
 
-1. Открой [DMG для macOS 26+](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.8.0/Shoev-Switcher.dmg) и перетащи приложение в **Applications**.
+1. Открой [DMG для macOS 26+](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.9.0/Shoev-Switcher.dmg) и перетащи приложение в **Applications**.
 2. Запусти Shoev Switcher.
 3. Разреши **Мониторинг ввода** и **Универсальный доступ** в настройках macOS.
 4. Убедись, что добавлены русская и английская раскладки.
