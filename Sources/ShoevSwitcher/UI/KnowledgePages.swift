@@ -318,7 +318,7 @@ private struct RuleEditorView: View {
             TextField("Bundle ID приложения — пусто для всех", text: $application).textFieldStyle(.roundedBorder)
             HStack { Spacer(); Button("Отмена") { dismiss() }; Button("Сохранить") { submit() }.keyboardShortcut(.defaultAction)
                 .disabled(pattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pattern.trimmingCharacters(in: .whitespacesAndNewlines).contains(where: { $0.isWhitespace }) || (kind == .convert && replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)) }
-        }.padding(28).frame(width: 600).background(PaperBackground(tint: Brand.panel, textureOpacity: 0.25)).foregroundStyle(Brand.ink).tint(Brand.accent).preferredColorScheme(.light)
+        }.padding(28).frame(width: 600).background(MetalBackground(tint: Brand.panel, textureOpacity: 0.12)).foregroundStyle(Brand.ink).tint(Brand.accent).preferredColorScheme(.dark)
     }
     private func submit() {
         var value = original
@@ -343,6 +343,6 @@ private struct WordEditorView: View {
             TextField("Имя, название или слово", text: $word).textFieldStyle(.roundedBorder)
             HStack { Spacer(); Button("Отмена") { dismiss() }; Button("Добавить") { save(word, language); dismiss() }
                 .keyboardShortcut(.defaultAction).disabled(PersonalWordValidation.normalized(word, language: language) == nil) }
-        }.padding(28).frame(width: 450).background(PaperBackground(tint: Brand.panel, textureOpacity: 0.25)).foregroundStyle(Brand.ink).tint(Brand.accent).preferredColorScheme(.light)
+        }.padding(28).frame(width: 450).background(MetalBackground(tint: Brand.panel, textureOpacity: 0.12)).foregroundStyle(Brand.ink).tint(Brand.accent).preferredColorScheme(.dark)
     }
 }

@@ -105,7 +105,7 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Shoev Switcher"
         window.minSize = NSSize(width: 960, height: 740)
-        window.appearance = NSAppearance(named: .aqua)
+        window.appearance = NSAppearance(named: .darkAqua)
         window.backgroundColor = NSColor(Brand.background)
         window.isReleasedWhenClosed = false
         window.center()
@@ -126,24 +126,26 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
 }
 
 enum Brand {
-    static let ink = Color(red: 0.21, green: 0.17, blue: 0.13)
-    static let accent = Color(red: 0.36, green: 0.28, blue: 0.20)
-    static let secondary = Color(red: 0.38, green: 0.33, blue: 0.27)
-    static let selection = Color(red: 0.26, green: 0.20, blue: 0.15)
-    static let background = Color(red: 0.94, green: 0.90, blue: 0.82)
-    static let panel = Color(red: 0.99, green: 0.97, blue: 0.91)
-    static let edge = Color(red: 0.70, green: 0.61, blue: 0.48)
-    static let warning = Color(red: 0.61, green: 0.32, blue: 0.11)
+    static let ink = Color(red: 0.91, green: 0.92, blue: 0.94)
+    static let accent = Color(red: 0.83, green: 0.70, blue: 0.46)
+    static let secondary = Color(red: 0.66, green: 0.69, blue: 0.74)
+    static let selection = Color(red: 0.20, green: 0.22, blue: 0.26)
+    static let background = Color(red: 0.09, green: 0.105, blue: 0.125)
+    static let panel = Color(red: 0.13, green: 0.15, blue: 0.18)
+    static let panelHighlight = Color(red: 0.18, green: 0.20, blue: 0.235)
+    static let sidebar = Color(red: 0.06, green: 0.075, blue: 0.095)
+    static let edge = Color(red: 0.63, green: 0.67, blue: 0.73)
+    static let warning = Color(red: 0.93, green: 0.64, blue: 0.37)
     // Decode once, not each time the status model refreshes. No animation or drawing loop.
-    static let surfaceImage = Bundle.module.url(forResource: "PaperSurface", withExtension: "png")
+    static let surfaceImage = Bundle.module.url(forResource: "MetalSurface", withExtension: "png")
         .flatMap(NSImage.init(contentsOf:))
     static let catImage = Bundle.module.url(forResource: "BrandCat", withExtension: "png")
         .flatMap(NSImage.init(contentsOf:))
 }
 
-struct PaperBackground: View {
+struct MetalBackground: View {
     var tint: Color = Brand.background
-    var textureOpacity: Double = 0.72
+    var textureOpacity: Double = 0.3
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -158,25 +160,14 @@ struct PaperBackground: View {
     }
 }
 
-struct PaperCatLogo: View {
+struct MetalCatLogo: View {
     let width: CGFloat
     let height: CGFloat
-    private let edgeOffsets: [CGSize] = [
-        CGSize(width: -0.75, height: 0), CGSize(width: 0.75, height: 0),
-        CGSize(width: 0, height: -0.75), CGSize(width: 0, height: 0.75)
-    ]
     var body: some View {
         if let cat = Brand.catImage {
-            ZStack {
-                // A thin paper-cut edge, following the cat's alpha, not a backing tile.
-                ForEach(edgeOffsets.indices, id: \.self) { index in
-                    Image(nsImage: cat).resizable().renderingMode(.template).scaledToFit()
-                        .foregroundStyle(Brand.ink.opacity(0.65)).offset(edgeOffsets[index])
-                }
-                Image(nsImage: cat).resizable().scaledToFit()
-            }
+            Image(nsImage: cat).resizable().scaledToFit()
             .frame(width: width, height: height)
-            .shadow(color: Brand.ink.opacity(0.16), radius: 1.5, x: 0, y: 1.5)
+            .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 2)
             .accessibilityHidden(true)
         }
     }
@@ -228,17 +219,17 @@ private struct ApplicationView: View {
             .padding(28)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .background(PaperBackground())
+        .background(MetalBackground())
         .foregroundStyle(Brand.ink)
         .tint(Brand.accent)
-        .preferredColorScheme(.light)
+        .preferredColorScheme(.dark)
     }
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 26) {
             HStack(spacing: 12) {
-                PaperCatLogo(width: 48, height: 48)
-                Text("Shoev Switcher").font(.system(size: 15, weight: .semibold, design: .rounded)).lineLimit(1)
+                MetalCatLogo(width: 48, height: 48)
+                Text("Shoev Switcher").font(.system(size: 15, weight: .semibold)).lineLimit(1)
             }
             VStack(spacing: 7) {
                 ForEach(ApplicationPage.allCases) { page in
@@ -246,17 +237,17 @@ private struct ApplicationView: View {
                         Label(page.rawValue, systemImage: page.symbol)
                             .font(.system(size: 14, weight: model.page == page ? .semibold : .regular))
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 12)
-                            .foregroundStyle(model.page == page ? Color.white : Brand.secondary)
+                            .foregroundStyle(model.page == page ? Brand.accent : Brand.secondary)
                             .background {
                                 if model.page == page {
-                                    RoundedRectangle(cornerRadius: 5).fill(
-                                        LinearGradient(colors: [Brand.accent, Brand.selection], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                    RoundedRectangle(cornerRadius: 12).fill(
+                                        LinearGradient(colors: [Brand.selection, Brand.panel], startPoint: .topLeading, endPoint: .bottomTrailing))
                                 }
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(
-                                focusedPage == page ? (model.page == page ? Color.white.opacity(0.65) : Brand.accent) : Color.clear,
-                                lineWidth: 1.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(
+                                focusedPage == page ? Brand.accent.opacity(0.8) : model.page == page ? Brand.accent.opacity(0.28) : Color.clear,
+                                lineWidth: 1))
                     }.buttonStyle(.plain).focused($focusedPage, equals: page).focusEffectDisabled()
                         .accessibilityAddTraits(model.page == page ? .isSelected : [])
                 }
@@ -264,16 +255,16 @@ private struct ApplicationView: View {
             Spacer()
             Text("Created by Shoev Systems").font(.system(size: 11)).foregroundStyle(Brand.secondary)
         }.padding(22).frame(width: 232)
-            .background(PaperBackground(tint: Brand.panel, textureOpacity: 0.35))
+            .background(MetalBackground(tint: Brand.sidebar, textureOpacity: 0.08))
     }
 
     private var header: some View {
         HStack(spacing: 20) {
             Text(model.page == .overview ? "Shoev Switcher" : model.page.rawValue)
-                .font(.system(size: 30, weight: .semibold, design: .serif))
+                .font(.system(size: 30, weight: .medium)).tracking(-0.5)
             Spacer(minLength: 0)
             if model.page == .overview {
-                PaperCatLogo(width: 82, height: 98)
+                MetalCatLogo(width: 82, height: 98)
             }
         }
     }
@@ -311,7 +302,7 @@ private struct ApplicationView: View {
                 Spacer()
                 Toggle(name + " включён", isOn: enabled).labelsHidden().toggleStyle(.switch)
             }
-            Text(name).font(.system(size: 23, weight: .semibold, design: .serif))
+            Text(name).font(.system(size: 23, weight: .medium))
             Button("Настроить " + name) { model.page = page }.buttonStyle(.bordered)
         }.frame(maxWidth: .infinity, alignment: .leading).card()
     }
@@ -419,16 +410,10 @@ private struct ApplicationView: View {
 extension View {
     func card() -> some View {
         self.frame(maxWidth: .infinity, alignment: .leading).padding(20)
-            .background {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 5).fill(Brand.panel)
-                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(Brand.edge.opacity(0.3), lineWidth: 1))
-                        .offset(x: 2, y: 3)
-                    PaperBackground(tint: Brand.panel, textureOpacity: 0.25)
-                        .clipShape(RoundedRectangle(cornerRadius: 5))
-                }
-            }
-            .overlay(RoundedRectangle(cornerRadius: 5).stroke(Brand.edge.opacity(0.4), lineWidth: 1))
-            .shadow(color: Brand.ink.opacity(0.075), radius: 3, x: 0, y: 3)
+            .background(LinearGradient(colors: [Brand.panelHighlight, Brand.panel], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(
+                LinearGradient(colors: [Brand.edge.opacity(0.38), Brand.edge.opacity(0.12)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+            .shadow(color: .black.opacity(0.22), radius: 10, x: 0, y: 5)
     }
 }

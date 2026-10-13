@@ -8,9 +8,9 @@
 
 <p align="center">
   <a href="https://github.com/TiDazai/Shoev-Switcher/actions/workflows/ci.yml"><img src="https://github.com/TiDazai/Shoev-Switcher/actions/workflows/ci.yml/badge.svg" alt="macOS CI"></a>
-  <a href="https://github.com/TiDazai/Shoev-Switcher/releases"><img src="https://img.shields.io/github/v/release/TiDazai/Shoev-Switcher?include_prereleases&amp;color=d8c7a5&amp;labelColor=59422f&amp;label=release" alt="Release"></a>
+  <a href="https://github.com/TiDazai/Shoev-Switcher/releases"><img src="https://img.shields.io/github/v/release/TiDazai/Shoev-Switcher?include_prereleases&amp;color=cbb17d&amp;labelColor=1c222b&amp;label=release" alt="Release"></a>
   <img src="https://img.shields.io/badge/macOS-26%2B-303030" alt="macOS 26+">
-  <img src="https://img.shields.io/badge/Swift-native-d8c7a5?labelColor=59422f" alt="Native Swift">
+  <img src="https://img.shields.io/badge/Swift-native-cbb17d?labelColor=1c222b" alt="Native Swift">
 </p>
 
 <p align="center">
@@ -30,11 +30,11 @@
 
 Shoev Switcher is an offline Russian–English keyboard layout and spelling app for macOS, made by SHOEV SYSTEMS.
 
-Shoev Switcher предназначен только для **macOS 26 и новее**. Опубликованная версия доступна как [предрелиз 0.8.0](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.8.0). Пергаментный дизайн пока находится в работе и не опубликован отдельным релизом. Исправление при обычном наборе в Microsoft Word было проверено в 0.7.1; совместимость других текстовых полей зависит от редактора. Работа в поле ввода Codex не подтверждена.
+Shoev Switcher предназначен только для **macOS 26 и новее**. Опубликованная версия доступна как [предрелиз 0.8.0](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.8.0). Обновлённый дизайн для 0.8.1 пока находится в работе и не опубликован отдельным релизом. Исправление при обычном наборе в Microsoft Word было проверено в 0.7.1; совместимость других текстовых полей зависит от редактора. Работа в поле ввода Codex не подтверждена.
 
 ## Просто продолжай писать
 
-Shoev Switcher для macOS объединяет два независимых модуля в одном приложении. Тёплый пергамент, натуральная фактура бумаги, чернильный текст и карточки-листы — новый облик приложения. Логотип — белая бумажная кошка Shoev Systems без стрелок и квадратной подложки, в том числе на иконке приложения. Статичная текстура не использует анимацию. В строке меню — только кошка, без подложки; через неё можно открыть окно или включить и выключить модули.
+Shoev Switcher для macOS объединяет два независимых модуля в одном приложении. Графитовый фон, платиновые поверхности, серебристые грани и золотые акценты. Логотип — платиновая кошка Shoev Systems без стрелок и квадратной подложки, в том числе на иконке приложения. Статичная текстура не использует анимацию. В строке меню — только кошка; через неё можно открыть окно или включить и выключить модули.
 
 | Модуль | Что делает |
 | --- | --- |

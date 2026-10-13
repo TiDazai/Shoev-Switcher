@@ -16,11 +16,11 @@ final class ApplicationInterfaceTests: XCTestCase {
         let controller = ApplicationWindowController(model: model)
         XCTAssertEqual(controller.window?.title, "Shoev Switcher")
         XCTAssertEqual(controller.window?.minSize.width, 960)
-        XCTAssertEqual(controller.window?.appearance?.name, .aqua)
+        XCTAssertEqual(controller.window?.appearance?.name, .darkAqua)
         XCTAssertNotNil(controller.window?.contentView)
         controller.window?.close()
     }
-    func testPaperAssetsAreBundledAndCached() {
+    func testMetalAssetsAreBundledAndCached() {
         XCTAssertNotNil(Brand.surfaceImage)
         XCTAssertNotNil(Brand.catImage)
         XCTAssertTrue(Brand.surfaceImage === Brand.surfaceImage)
@@ -36,7 +36,7 @@ final class ApplicationInterfaceTests: XCTestCase {
             XCTAssertEqual(try XCTUnwrap(bitmap.colorAt(x: x, y: y)).alphaComponent, 0, accuracy: 0.001)
         }
     }
-    func testLightThemeTextContrast() {
+    func testMetalThemeTextContrast() {
         func luminance(_ color: SwiftUI.Color) -> Double {
             let rgb = NSColor(color).usingColorSpace(.sRGB)!
             func linear(_ value: CGFloat) -> Double {
@@ -45,9 +45,15 @@ final class ApplicationInterfaceTests: XCTestCase {
             }
             return 0.2126 * linear(rgb.redComponent) + 0.7152 * linear(rgb.greenComponent) + 0.0722 * linear(rgb.blueComponent)
         }
-        for text in [Brand.ink, Brand.accent, Brand.secondary, Brand.warning] {
-            XCTAssertGreaterThanOrEqual((luminance(Brand.background) + 0.05) / (luminance(text) + 0.05), 4.5)
+        func contrast(_ foreground: Color, _ background: Color) -> Double {
+            let values = [luminance(foreground), luminance(background)]
+            return (values.max()! + 0.05) / (values.min()! + 0.05)
         }
-        XCTAssertGreaterThanOrEqual(1.05 / (luminance(Brand.selection) + 0.05), 4.5)
+        for surface in [Brand.background, Brand.panel, Brand.panelHighlight, Brand.sidebar] {
+            for text in [Brand.ink, Brand.accent, Brand.secondary, Brand.warning] {
+                XCTAssertGreaterThanOrEqual(contrast(text, surface), 4.5)
+            }
+        }
+        XCTAssertGreaterThanOrEqual(contrast(Brand.accent, Brand.selection), 4.5)
     }
 }
