@@ -25,7 +25,7 @@ final class InputEngine: KeyboardMonitorDelegate {
     private var shortcutShiftWasDown = false
     private var lastShortcutShiftRelease: Date?
     private var tokenStart: TextReplacementContext?
-    private var completedField: AXUIElement?
+    private var completedContext: TextReplacementContext?
     private var completedPrefix: String?
     private let readContext: () -> TextReplacementContext?
     private let frontmost: () -> NSRunningApplication?
@@ -67,7 +67,7 @@ final class InputEngine: KeyboardMonitorDelegate {
     }
 
     func externalTextDidChange(_ correction: Correction) {
-        current.clear(); tokenStart = nil; lastCompleted = nil; completedPrefix = nil; completedField = nil
+        current.clear(); tokenStart = nil; lastCompleted = nil; completedPrefix = nil; completedContext = nil
         if !correction.original.contains(where: { $0.isWhitespace }), !correction.replacement.contains(where: { $0.isWhitespace }),
            let index = recentTokens.lastIndex(where: { $0.text.lowercased() == correction.original.lowercased() }) {
             recentTokens[index] = ContextToken(text: correction.replacement, language: recentTokens[index].language)
@@ -225,7 +225,7 @@ final class InputEngine: KeyboardMonitorDelegate {
 
         switch evaluation.decision {
         case .keep:
-            completedField = context.element
+            completedContext = context
             completedPrefix = context.prefix + terminator
             logger.info(
                 "Detector kept token. length=\(original.count, privacy: .public) source=\(sourceLanguage.rawValue, privacy: .public)"
@@ -265,7 +265,7 @@ final class InputEngine: KeyboardMonitorDelegate {
                     self.recentLanguages = precedingLanguages
                     self.recentTokens = precedingTokens
                     _ = self.sourceManager.select(candidate.targetLanguage)
-                    self.completedField = context.element
+                    self.completedContext = context
                     self.completedPrefix = String(context.prefix.dropLast(original.count)) + candidate.replacement + terminator
                     self.correctionNotifier.show(original: candidate.original, replacement: candidate.replacement)
                     self.lastCompleted = CompletedToken(
@@ -357,7 +357,7 @@ final class InputEngine: KeyboardMonitorDelegate {
                     if !self.recentTokens.isEmpty { self.recentTokens.removeLast() }
                 }
                 _ = self.sourceManager.select(target)
-                self.completedField = context.element
+                self.completedContext = context
                 self.completedPrefix = String(context.prefix.dropLast(original.count + terminator.count)) + replacement + terminator
                 if kind != .undone {
                     self.lastCompleted = CompletedToken(displayedText: replacement, alternativeText: original,
@@ -387,14 +387,14 @@ final class InputEngine: KeyboardMonitorDelegate {
 
     private func verifiedCurrentContext() -> TextReplacementContext? {
         guard let start = tokenStart, let context = readContext(), context.range.length == 0,
-              CFEqual(start.element, context.element),
+              start.sameRegion(as: context),
               context.prefix == start.prefix + current.visibleText else { return nil }
         return context
     }
 
     private func verifiedCompletedContext() -> TextReplacementContext? {
-        guard let field = completedField, let prefix = completedPrefix, let context = readContext(),
-              CFEqual(field, context.element), context.range.length == 0, context.prefix == prefix else { return nil }
+        guard let completed = completedContext, let prefix = completedPrefix, let context = readContext(),
+              completed.sameRegion(as: context), context.range.length == 0, context.prefix == prefix else { return nil }
         return context
     }
 
@@ -464,7 +464,7 @@ final class InputEngine: KeyboardMonitorDelegate {
         recentLanguages.removeAll(keepingCapacity: true)
         recentTokens.removeAll(keepingCapacity: true)
         tokenStart = nil
-        completedField = nil
+        completedContext = nil
         completedPrefix = nil
         shortcutShiftWasDown = false
         lastShortcutShiftRelease = nil

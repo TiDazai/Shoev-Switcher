@@ -58,6 +58,15 @@ final class AdaptiveLearningTests: XCTestCase {
         XCTAssertEqual(fixture.outcomes.last, .unverified)
         XCTAssertTrue(fixture.proofs.isEmpty)
     }
+    func testIdenticalTextInADifferentParagraphNeverTeaches() {
+        let fixture = FeedbackFixture()
+        fixture.offset = 200
+        fixture.record(kind: .manualCorrection)
+        fixture.offset = 500
+        fixture.controller.evaluate(context: fixture.context, boundary: true, submitted: true)
+        XCTAssertEqual(fixture.outcomes.last, .unverified)
+        XCTAssertTrue(fixture.proofs.isEmpty)
+    }
     func testSubmitConfirmsAManualResultWithoutConsumingAKey() {
         let fixture = FeedbackFixture()
         fixture.record(kind: .manualCorrection)
@@ -130,9 +139,10 @@ private final class FeedbackFixture {
     var text = "привет "
     var time: TimeInterval = 0
     var app: String? = "com.example.Editor"
+    var offset = 0
     var outcomes: [FeedbackOutcome] = []
     var proofs: [LearningProof] = []
-    var context: TextReplacementContext { TextReplacementContext(element: element, text: text, range: CFRange(location: text.utf16.count, length: 0)) }
+    var context: TextReplacementContext { TextReplacementContext(element: element, text: text, range: CFRange(location: text.utf16.count, length: 0), textOffset: offset) }
     lazy var controller = AdaptiveLearningController(store: nil, defaults: defaults,
         readContext: { [unowned self] in self.context }, application: { [unowned self] in self.app }, now: { [unowned self] in Date(timeIntervalSince1970: self.time) },
         schedule: { _, _ in }, outcomeObserver: { [unowned self] _, outcome in self.outcomes.append(outcome) }, proofObserver: { [unowned self] in self.proofs.append($0) }, secureInput: { false })

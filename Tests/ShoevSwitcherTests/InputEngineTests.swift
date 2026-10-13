@@ -76,6 +76,22 @@ final class InputEngineTests: XCTestCase {
         XCTAssertFalse(fixture.key("", code: 51))
         XCTAssertEqual(fixture.injector.calls, 1)
     }
+    func testIdenticalWordInAnotherParagraphIsNotCorrected() {
+        let fixture = Fixture()
+        fixture.type("ghbdtn")
+        fixture.offset = 1000
+        XCTAssertFalse(fixture.key(" ", code: 49))
+        XCTAssertEqual(fixture.injector.calls, 0)
+    }
+
+    func testUndoNeverTouchesAnIdenticalWordInAnotherParagraph() {
+        let fixture = Fixture()
+        fixture.type("ghbdtn")
+        XCTAssertTrue(fixture.key(" ", code: 49))
+        fixture.offset = 1000
+        XCTAssertFalse(fixture.key("", code: 51))
+        XCTAssertEqual(fixture.injector.calls, 1)
+    }
 
     func testEditingPrefixInvalidatesToken() {
         let fixture = Fixture()
@@ -154,6 +170,7 @@ private final class Fixture {
     var text = ""
     var field = AXUIElementCreateApplication(101)
     var contextAvailable = true
+    var offset = 0
     let source = FakeSource()
     let injector = FakeInjector()
     let monitor = KeyboardMonitor()
@@ -174,7 +191,7 @@ private final class Fixture {
             readContext: { [weak self] in
                 guard let self, self.contextAvailable else { return nil }
                 return TextReplacementContext(element: self.field, text: self.text,
-                    range: CFRange(location: self.text.utf16.count, length: 0))
+                    range: CFRange(location: self.text.utf16.count, length: 0), textOffset: self.offset)
             }, frontmost: { nil })
         injector.apply = { [weak self] original, replacement, event in
             guard let self else { return }

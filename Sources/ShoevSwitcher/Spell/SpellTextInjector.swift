@@ -45,7 +45,8 @@ final class SpellTextInjector: SpellTextInjecting {
               context.selectionLength == 0, context.prefix.utf16.count <= text.utf16.count,
               (text as NSString).substring(to: context.prefix.utf16.count) == context.prefix else { return nil }
         return TextReplacementContext(element: element, text: text,
-            range: CFRange(location: context.prefix.utf16.count, length: 0))
+            range: CFRange(location: context.prefix.utf16.count, length: 0),
+            textOffset: context.textOffset, selectionTransport: context.selectionTransport)
     }
 }
 

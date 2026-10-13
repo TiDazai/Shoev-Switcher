@@ -7,6 +7,8 @@ struct CaretContext {
     var nextCharacter: Character? = nil
     var element: AXUIElement? = nil
     var fullText: String? = nil
+    var textOffset: Int = 0
+    var selectionTransport: TextSelectionTransport = .range
 
     func matches(_ other: CaretContext) -> Bool {
         sameField(as: other) && prefix == other.prefix && selectionLength == other.selectionLength
@@ -15,6 +17,7 @@ struct CaretContext {
     }
 
     func sameField(as other: CaretContext) -> Bool {
+        guard textOffset == other.textOffset, selectionTransport == other.selectionTransport else { return false }
         if let element, let otherElement = other.element {
             return CFEqual(element, otherElement)
         }

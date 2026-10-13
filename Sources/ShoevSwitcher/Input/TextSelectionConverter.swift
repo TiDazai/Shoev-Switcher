@@ -42,7 +42,7 @@ final class TextSelectionConverter {
         guard status == .success else { return nil }
         let expectedText = (before.text as NSString).replacingCharacters(
             in: NSRange(location: before.range.location, length: before.range.length), with: replacement)
-        guard let after = TextReplacementContextReader().read(), CFEqual(after.element, element), after.text == expectedText else { return nil }
+        guard let after = TextReplacementContextReader().read(), after.sameRegion(as: before), after.text == expectedText else { return nil }
         return SelectionConversion(
             original: selectedText,
             replacement: replacement,

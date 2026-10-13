@@ -5,6 +5,8 @@ struct TextReplacementContext {
     let element: AXUIElement
     let text: String
     let range: CFRange
+    var textOffset: Int = 0
+    var selectionTransport: TextSelectionTransport = .range
 
     var prefix: String { (text as NSString).substring(to: range.location) }
 
@@ -17,8 +19,13 @@ struct TextReplacementContext {
     }
 
     func matches(_ other: TextReplacementContext) -> Bool {
-        CFEqual(element, other.element) && text == other.text
+        sameRegion(as: other) && text == other.text
             && range.location == other.range.location && range.length == other.range.length
+    }
+
+    func sameRegion(as other: TextReplacementContext) -> Bool {
+        CFEqual(element, other.element) && textOffset == other.textOffset
+            && selectionTransport == other.selectionTransport
     }
 
     static func replacementRange(in text: String, caret: Int, original: String) -> CFRange? {
@@ -36,6 +43,7 @@ final class TextReplacementContextReader {
         guard let context = VerifiedCaretContextReader().read(),
               let element = context.element, let text = context.fullText else { return nil }
         return TextReplacementContext(element: element, text: text,
-            range: CFRange(location: context.prefix.utf16.count, length: context.selectionLength))
+            range: CFRange(location: context.prefix.utf16.count, length: context.selectionLength),
+            textOffset: context.textOffset, selectionTransport: context.selectionTransport)
     }
 }

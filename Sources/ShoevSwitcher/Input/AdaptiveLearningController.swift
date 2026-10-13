@@ -7,6 +7,8 @@ final class AdaptiveLearningController {
     private struct Pending {
         var entry: JournalEntry
         let element: AXUIElement
+        let textOffset: Int
+        let selectionTransport: TextSelectionTransport
         let prefix: String
         let module: CorrectionModule
         let startedAt: Date
@@ -84,7 +86,8 @@ final class AdaptiveLearningController {
         }
         entry.outcome = .pending
         if journalEnabled { store?.enqueue(entry) }
-        add(Pending(entry: entry, element: context.element, prefix: prefix, module: module,
+        add(Pending(entry: entry, element: context.element, textOffset: context.textOffset,
+            selectionTransport: context.selectionTransport, prefix: prefix, module: module,
             startedAt: now(), proofKind: entry.kind == .manualCorrection ? .convert : nil, journaled: journalEnabled))
     }
 
@@ -139,7 +142,7 @@ final class AdaptiveLearningController {
         if boundary { evaluateRepairs(context) }
         for id in Array(pending.keys) {
             guard var item = pending[id] else { continue }
-            guard item.entry.applicationBundleIdentifier == application(), CFEqual(item.element, context.element) else {
+            guard item.entry.applicationBundleIdentifier == application(), sameRegion(item, context) else {
                 finish(id, outcome: .unverified); continue
             }
             if undoRequested, let restored = restoredPrefix(item), context.text.hasPrefix(restored) {
@@ -191,7 +194,7 @@ final class AdaptiveLearningController {
     private func handleExplicitUndo(_ undo: JournalEntry, module: CorrectionModule) {
         guard let item = pending.values.filter({ $0.module == module && $0.entry.applicationBundleIdentifier == undo.applicationBundleIdentifier
             && $0.entry.replacement == undo.original && $0.entry.original == undo.replacement }).max(by: { $0.startedAt < $1.startedAt }),
-              let context = safeContext(), CFEqual(item.element, context.element),
+              let context = safeContext(), sameRegion(item, context),
               let restored = restoredPrefix(item), context.text.hasPrefix(restored) else { return }
         finish(item.entry.eventID!, outcome: .rejected)
         suspend(item)
@@ -209,7 +212,8 @@ final class AdaptiveLearningController {
         let entry = JournalEntry(id: 0, createdAt: now(), applicationBundleIdentifier: item.entry.applicationBundleIdentifier,
             applicationName: item.entry.applicationName, original: item.entry.original, replacement: nil,
             sourceLanguage: language, targetLanguage: language, kind: .manualCorrection, eventID: UUID().uuidString)
-        add(Pending(entry: entry, element: context.element, prefix: prefix, module: item.module,
+        add(Pending(entry: entry, element: context.element, textOffset: context.textOffset,
+            selectionTransport: context.selectionTransport, prefix: prefix, module: item.module,
             startedAt: now(), proofKind: .keep, journaled: false))
     }
 
@@ -220,6 +224,11 @@ final class AdaptiveLearningController {
     }
 
     private func safeContext() -> TextReplacementContext? { secureInput() ? nil : readContext() }
+
+    private func sameRegion(_ item: Pending, _ context: TextReplacementContext) -> Bool {
+        CFEqual(item.element, context.element) && item.textOffset == context.textOffset
+            && item.selectionTransport == context.selectionTransport
+    }
 
     private func learn(_ item: Pending, kind: RuleKind) {
         guard defaults.bool(forKey: PreferenceKey.automaticLearning), let source = item.entry.sourceLanguage,
@@ -235,7 +244,7 @@ final class AdaptiveLearningController {
         var consumed: [Int] = []
         for (index, repair) in repairs.enumerated() {
             let item = repair.pending
-            guard item.entry.applicationBundleIdentifier == application(), CFEqual(item.element, context.element),
+            guard item.entry.applicationBundleIdentifier == application(), sameRegion(item, context),
                   context.prefix.hasPrefix(repair.before), context.range.length == 0 else { continue }
             let tail = String(context.prefix.dropFirst(repair.before.count)).trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
             guard !tail.isEmpty, tail.count <= 32, let language = SpellLanguage.detect(in: tail).map({ $0 == .english ? InputLanguage.english : .russian }),
@@ -249,7 +258,8 @@ final class AdaptiveLearningController {
                 entry = JournalEntry(id: 0, createdAt: now(), applicationBundleIdentifier: entry.applicationBundleIdentifier,
                     applicationName: entry.applicationName, original: entry.original, replacement: tail,
                     sourceLanguage: entry.sourceLanguage, targetLanguage: language, kind: .manualCorrection, eventID: UUID().uuidString)
-                add(Pending(entry: entry, element: context.element, prefix: context.prefix, module: item.module,
+                add(Pending(entry: entry, element: context.element, textOffset: context.textOffset,
+                    selectionTransport: context.selectionTransport, prefix: context.prefix, module: item.module,
                     startedAt: now(), proofKind: .convert, journaled: false))
             } else { continue }
             consumed.append(index)

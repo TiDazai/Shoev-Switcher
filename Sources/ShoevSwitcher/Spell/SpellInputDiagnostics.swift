@@ -4,6 +4,7 @@ import OSLog
 enum SpellInputDiagnostic: String {
     case missingFocus = "Не удалось получить активное поле."
     case missingRange = "Поле не предоставляет положение курсора."
+    case markerContext = "Поле доступно через текстовые маркеры редактора."
     case missingValue = "Поле не предоставляет текст для проверки."
     case invalidRange = "Редактор вернул некорректный диапазон курсора."
     case secureField = "Защищённый ввод: исправления запрещены."

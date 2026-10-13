@@ -62,7 +62,7 @@ final class EventInjector: TextReplacing {
         func attempt() {
             attempts += 1
             guard self.generation == scheduledGeneration, !self.secureInput(),
-                  let now = self.readContext(), CFEqual(now.element, context.element) else { return }
+                  let now = self.readContext(), now.sameRegion(as: context) else { return }
             if now.text == postText, now.range.location == context.range.location + delimiter.utf16.count,
                now.range.length == 0 {
                 // The physical delimiter already belongs to the editor. Never
@@ -94,13 +94,13 @@ final class EventInjector: TextReplacing {
             : TextReplacementContext.replacementRange(in: context.text, caret: wordCaret, original: original)
         guard !secureInput(),
               context.range.length == 0,
-              var range = replacementRange,
-              let selectedRange = AXValueCreate(.cfRange, &range) else { return false }
-        guard access.writable(context.element, kAXSelectedTextRangeAttribute) else { return false }
+              let range = replacementRange else { return false }
+        let selection = AccessibilityTextSelection(access: access)
+        guard selection.canSet(context) else { return false }
         let delimiter = trailingEvent.flatMap(Self.inlineDelimiter)
         guard trailingEvent == nil || delimiter != nil,
               readContext()?.matches(context) == true else { return false }
-        guard access.set(context.element, kAXSelectedTextRangeAttribute, selectedRange) == .success else { return false }
+        guard selection.set(range, in: context) else { return false }
         let insertedText = replacement + (delimiter ?? "")
         guard let selected = confirmSelection(context, range: range) else { return !restore(context) }
         let expectedText = (context.text as NSString).replacingCharacters(in: NSRange(location: range.location, length: range.length), with: insertedText)
@@ -110,7 +110,7 @@ final class EventInjector: TextReplacing {
         if access.writable(context.element, kAXSelectedTextAttribute) {
             guard readContext()?.matches(selected) == true else { return true }
             _ = access.set(context.element, kAXSelectedTextAttribute, insertedText as CFString)
-            guard let after = readContext(), CFEqual(after.element, context.element) else { return true }
+            guard let after = readContext(), after.sameRegion(as: context) else { return true }
             if after.text == expectedText || (after.range.length == 0 && after.prefix.hasPrefix(expectedPrefix)) {
                 finishReplacement(context: context, expectedText: expectedText,
                     insertedRange: insertedRange, finalCaret: finalCaret,
@@ -120,7 +120,7 @@ final class EventInjector: TextReplacing {
             // Only a verified no-op permits pasting over the same selection.
             if !after.matches(selected) {
                 guard after.matches(context),
-                      access.set(context.element, kAXSelectedTextRangeAttribute, selectedRange) == .success,
+                      selection.set(range, in: context),
                       confirmSelection(context, range: range)?.matches(selected) == true else {
                     if after.text == context.text, restore(context) { return false }
                     return true
@@ -139,7 +139,7 @@ final class EventInjector: TextReplacing {
             posted = ClipboardPaste.shared.paste(insertedText, into: context.element, marker: Self.syntheticEventMarker,
                 validate: { !self.secureInput() && self.readContext()?.matches(selected) == true },
                 applied: {
-                    guard let after = self.readContext(), CFEqual(after.element, context.element) else { return false }
+                    guard let after = self.readContext(), after.sameRegion(as: context) else { return false }
                     return after.text == expectedText || (after.range.length == 0 && after.prefix.hasPrefix(expectedPrefix))
                 },
                 completion: { [weak self] verified in
@@ -165,7 +165,7 @@ final class EventInjector: TextReplacing {
         func attempt() {
             attempts += 1
             guard self.generation == scheduledGeneration, !self.secureInput(),
-                  let after = self.readContext(), CFEqual(after.element, context.element) else { return }
+                  let after = self.readContext(), after.sameRegion(as: context) else { return }
             // If typing has already continued after the delimiter, do not pull
             // the user's cursor back or replace any of the following text.
             if after.range.length == 0, after.range.location >= finalCaret,
@@ -179,10 +179,9 @@ final class EventInjector: TextReplacing {
             let insertedSelection = after.range.location == insertedRange.location
                 && after.range.length == insertedRange.length
             guard after.text == expectedText, atInsertedEnd || insertedSelection else { return }
-            var end = CFRange(location: finalCaret, length: 0)
-            guard let value = AXValueCreate(.cfRange, &end),
-                  self.access.set(context.element, kAXSelectedTextRangeAttribute, value) == .success else { return }
-            if let moved = self.readContext(), CFEqual(moved.element, context.element),
+            let end = CFRange(location: finalCaret, length: 0)
+            guard AccessibilityTextSelection(access: self.access).set(end, in: after) else { return }
+            if let moved = self.readContext(), moved.sameRegion(as: context),
                moved.text == expectedText, moved.range.location == finalCaret, moved.range.length == 0 {
                 self.logger.info("Replacement and caret verified")
                 completion()
@@ -195,7 +194,7 @@ final class EventInjector: TextReplacing {
 
     private func confirmSelection(_ context: TextReplacementContext, range: CFRange) -> TextReplacementContext? {
         for attempt in 0..<8 {
-            guard let selected = readContext(), CFEqual(selected.element, context.element), selected.text == context.text else { return nil }
+            guard let selected = readContext(), selected.sameRegion(as: context), selected.text == context.text else { return nil }
             if selected.range.location == range.location && selected.range.length == range.length { return selected }
             guard selected.matches(context), attempt < 7 else { return nil }
             Thread.sleep(forTimeInterval: 0.005)
@@ -204,10 +203,8 @@ final class EventInjector: TextReplacing {
     }
 
     private func restore(_ context: TextReplacementContext) -> Bool {
-        guard let now = readContext(), CFEqual(now.element, context.element), now.text == context.text else { return false }
-        var previous = context.range
-        guard let value = AXValueCreate(.cfRange, &previous),
-              access.set(context.element, kAXSelectedTextRangeAttribute, value) == .success,
+        guard let now = readContext(), now.sameRegion(as: context), now.text == context.text else { return false }
+        guard AccessibilityTextSelection(access: access).set(context.range, in: context),
               readContext()?.matches(context) == true else { return false }
         return true
     }
