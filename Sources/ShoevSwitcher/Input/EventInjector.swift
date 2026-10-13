@@ -55,8 +55,11 @@ final class EventInjector: TextReplacing {
                   let now = self.readContext(), CFEqual(now.element, context.element) else { return }
             if now.text == postText, now.range.location == context.range.location + delimiter.utf16.count,
                now.range.length == 0 {
-                _ = self.perform(original: original + delimiter, with: replacement + delimiter,
-                                 trailingEvent: nil, context: now, completion: completion)
+                // The physical delimiter already belongs to the editor. Never
+                // select it: some text controls trim trailing space on AX/paste.
+                _ = self.perform(original: original, with: replacement,
+                                 trailingEvent: nil, context: now,
+                                 preservingDelimiter: delimiter, completion: completion)
             } else if now.matches(context), attempts < 8 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.01, execute: attempt)
             }
@@ -66,10 +69,17 @@ final class EventInjector: TextReplacing {
     }
 
     private func perform(original: String, with replacement: String, trailingEvent: CGEvent? = nil,
-                         context: TextReplacementContext, completion: @escaping () -> Void = {}) -> Bool {
+                         context: TextReplacementContext, preservingDelimiter: String = "",
+                         completion: @escaping () -> Void = {}) -> Bool {
+        let scheduledGeneration = generation
+        let wordCaret = context.range.location - preservingDelimiter.utf16.count
+        guard wordCaret >= 0, context.prefix.hasSuffix(preservingDelimiter) else { return false }
+        let replacementRange = original.isEmpty && !preservingDelimiter.isEmpty
+            ? CFRange(location: wordCaret, length: 0)
+            : TextReplacementContext.replacementRange(in: context.text, caret: wordCaret, original: original)
         guard !secureInput(),
               context.range.length == 0,
-              var range = TextReplacementContext.replacementRange(in: context.text, caret: context.range.location, original: original),
+              var range = replacementRange,
               let selectedRange = AXValueCreate(.cfRange, &range) else { return false }
         guard access.writable(context.element, kAXSelectedTextRangeAttribute) else { return false }
         let delimiter = trailingEvent.flatMap(Self.inlineDelimiter)
@@ -79,17 +89,17 @@ final class EventInjector: TextReplacing {
         let insertedText = replacement + (delimiter ?? "")
         guard let selected = confirmSelection(context, range: range) else { return !restore(context) }
         let expectedText = (context.text as NSString).replacingCharacters(in: NSRange(location: range.location, length: range.length), with: insertedText)
+        let insertedRange = CFRange(location: range.location, length: insertedText.utf16.count)
+        let finalCaret = range.location + insertedText.utf16.count + preservingDelimiter.utf16.count
+        let expectedPrefix = (expectedText as NSString).substring(to: finalCaret)
         if access.writable(context.element, kAXSelectedTextAttribute) {
             guard readContext()?.matches(selected) == true else { return true }
             _ = access.set(context.element, kAXSelectedTextAttribute, insertedText as CFString)
             guard let after = readContext(), CFEqual(after.element, context.element) else { return true }
-            if after.text == expectedText {
-                var end = CFRange(location: range.location + insertedText.utf16.count, length: 0)
-                if let value = AXValueCreate(.cfRange, &end) {
-                    _ = access.set(context.element, kAXSelectedTextRangeAttribute, value)
-                }
-                logger.info("Replacement verified through selected text")
-                completion()
+            if after.text == expectedText || (after.range.length == 0 && after.prefix.hasPrefix(expectedPrefix)) {
+                finishReplacement(context: context, expectedText: expectedText,
+                    insertedRange: insertedRange, finalCaret: finalCaret,
+                    scheduledGeneration: scheduledGeneration, completion: completion)
                 return true
             }
             // Only a verified no-op permits pasting over the same selection.
@@ -105,21 +115,67 @@ final class EventInjector: TextReplacing {
         let posted: Bool
         if let pasteOverride {
             posted = pasteOverride(insertedText, selected, expectedText)
+            if posted {
+                finishReplacement(context: context, expectedText: expectedText,
+                    insertedRange: insertedRange, finalCaret: finalCaret,
+                    scheduledGeneration: scheduledGeneration, completion: completion)
+            }
         } else {
-            let expectedPrefix = (context.text as NSString).substring(to: range.location) + insertedText
             posted = ClipboardPaste.shared.paste(insertedText, into: context.element, marker: Self.syntheticEventMarker,
                 validate: { !self.secureInput() && self.readContext()?.matches(selected) == true },
                 applied: {
                     guard let after = self.readContext(), CFEqual(after.element, context.element) else { return false }
                     return after.text == expectedText || (after.range.length == 0 && after.prefix.hasPrefix(expectedPrefix))
                 },
-                completion: { [logger] verified in
-                    logger.info("Paste replacement verified=\(verified)")
-                    if verified { completion() }
+                completion: { [weak self] verified in
+                    guard verified, let self else { return }
+                    self.finishReplacement(context: context, expectedText: expectedText,
+                        insertedRange: insertedRange, finalCaret: finalCaret,
+                        scheduledGeneration: scheduledGeneration, completion: completion)
                 })
         }
         if posted { return true }
         return !restore(context)
+    }
+
+    /// Replacing only the word leaves the editor's caret before the preserved
+    /// delimiter. Move it past that delimiter and verify the AX setter; success
+    /// alone is not proof. A renderer may apply the range on its next tick.
+    private func finishReplacement(context: TextReplacementContext, expectedText: String,
+                                   insertedRange: CFRange, finalCaret: Int,
+                                   scheduledGeneration: Int,
+                                   completion: @escaping () -> Void) {
+        let expectedPrefix = (expectedText as NSString).substring(to: finalCaret)
+        var attempts = 0
+        func attempt() {
+            attempts += 1
+            guard self.generation == scheduledGeneration, !self.secureInput(),
+                  let after = self.readContext(), CFEqual(after.element, context.element) else { return }
+            // If typing has already continued after the delimiter, do not pull
+            // the user's cursor back or replace any of the following text.
+            if after.range.length == 0, after.range.location >= finalCaret,
+               after.prefix.hasPrefix(expectedPrefix) {
+                self.logger.info("Replacement and caret verified")
+                completion()
+                return
+            }
+            let atInsertedEnd = after.range.length == 0
+                && after.range.location == insertedRange.location + insertedRange.length
+            let insertedSelection = after.range.location == insertedRange.location
+                && after.range.length == insertedRange.length
+            guard after.text == expectedText, atInsertedEnd || insertedSelection else { return }
+            var end = CFRange(location: finalCaret, length: 0)
+            guard let value = AXValueCreate(.cfRange, &end),
+                  self.access.set(context.element, kAXSelectedTextRangeAttribute, value) == .success else { return }
+            if let moved = self.readContext(), CFEqual(moved.element, context.element),
+               moved.text == expectedText, moved.range.location == finalCaret, moved.range.length == 0 {
+                self.logger.info("Replacement and caret verified")
+                completion()
+            } else if attempts < 8 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01, execute: attempt)
+            }
+        }
+        attempt()
     }
 
     private func confirmSelection(_ context: TextReplacementContext, range: CFRange) -> TextReplacementContext? {
