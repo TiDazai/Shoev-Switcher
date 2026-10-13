@@ -3,8 +3,8 @@ import XCTest
 @testable import ShoevSwitcher
 
 final class ApplicationInterfaceTests: XCTestCase {
-    func testMainWindowContainsFourIndependentSections() {
-        XCTAssertEqual(ApplicationPage.allCases.map(\.rawValue), ["Обзор", "Switcher", "Spell", "Дневник"])
+    func testMainWindowContainsSeparateJournalDiaryAndDictionary() {
+        XCTAssertEqual(ApplicationPage.allCases.map(\.rawValue), ["Обзор", "Switcher", "Spell", "Журнал", "Дневник", "Словарь"])
     }
     func testNativeMainWindowUsesTheProductName() {
         _ = NSApplication.shared

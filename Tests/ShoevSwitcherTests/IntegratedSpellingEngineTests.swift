@@ -171,6 +171,8 @@ final class SpellInputEngineTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: SpellPreferenceKey.enabled)
         defaults.set(true, forKey: SpellPreferenceKey.automaticCorrection)
+        defaults.set(false, forKey: SpellPreferenceKey.automaticCapitalization)
+        defaults.set(false, forKey: SpellPreferenceKey.automaticPunctuation)
         defaults.set(3, forKey: SpellPreferenceKey.minimumLength)
         defaults.set(250, forKey: SpellPreferenceKey.minimumScore)
         var prefix = ""

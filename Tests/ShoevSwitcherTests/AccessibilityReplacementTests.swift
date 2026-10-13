@@ -59,6 +59,20 @@ final class AccessibilityReplacementTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(editor.caretWrites, 3)
     }
 
+    func testConfirmedManualCorrectionAlsoLeavesTheRealSpaceInTheEditor() {
+        let editor = DeferredEditor()
+        editor.insertPhysical(" ")
+        editor.trimInsertedTrailingWhitespace = true
+        let injector = editor.injector()
+        let finished = expectation(description: "verified manual replacement")
+        XCTAssertTrue(injector.replaceConfirmed(original: "ghbdtn", with: "привет", preservingDelimiter: " ",
+            context: editor.context, completion: { finished.fulfill() }))
+        wait(for: [finished], timeout: 1)
+        XCTAssertEqual(editor.text, "я привет ")
+        XCTAssertEqual(editor.range.location, editor.text.utf16.count)
+        XCTAssertEqual(editor.replacedValues, ["ghbdtn"])
+    }
+
     func testUnconfirmedCaretDoesNotReportACompletedCorrection() {
         let editor = DeferredEditor()
         editor.ignoredCaretWrites = 100

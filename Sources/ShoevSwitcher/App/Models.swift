@@ -147,6 +147,12 @@ struct UserRule: Codable, Identifiable, Equatable {
     let language: InputLanguage?
     let applicationBundleIdentifier: String?
     let createdAt: Date
+    var module: CorrectionModule? = nil
+    var origin: PersonalOrigin? = nil
+    var enabled: Bool? = nil
+    var targetLanguage: InputLanguage? = nil
+    var confirmations: Int? = nil
+    var isEnabled: Bool { enabled != false }
 }
 
 struct LearningEntry: Identifiable, Equatable {
@@ -180,4 +186,81 @@ struct JournalEntry: Codable, Identifiable, Equatable {
     let sourceLanguage: InputLanguage?
     let targetLanguage: InputLanguage?
     let kind: JournalEventKind
+    var eventID: String? = nil
+    var outcome: FeedbackOutcome? = nil
+}
+
+enum CorrectionModule: String, Codable, CaseIterable {
+    case switcher, spell
+    var title: String { self == .switcher ? "Switcher" : "Spell" }
+}
+
+enum PersonalOrigin: String, Codable, CaseIterable {
+    case manual, diary, learning
+    var title: String {
+        switch self { case .manual: return "Добавлено вручную"; case .diary: return "Из дневника"; case .learning: return "Самообучение" }
+    }
+}
+
+enum FeedbackOutcome: String, Codable, CaseIterable {
+    case pending, accepted, rejected, edited, unverified
+    var title: String {
+        switch self {
+        case .pending: return "Ожидает проверки"
+        case .accepted: return "Сохранено пользователем"
+        case .rejected: return "Отменено пользователем"
+        case .edited: return "Удалено или изменено"
+        case .unverified: return "Не подтверждено"
+        }
+    }
+}
+
+struct PersonalWord: Identifiable, Codable, Equatable {
+    let id: String
+    let word: String
+    let language: InputLanguage
+    let origin: PersonalOrigin
+    let applicationBundleIdentifier: String?
+    let ruleID: Int64?
+    let createdAt: Date
+    var module: CorrectionModule? = nil
+    var scopeTitle: String { (module.map { $0.title + " · " } ?? "") + (applicationBundleIdentifier ?? "Все приложения") }
+}
+
+struct AdaptiveObservation: Identifiable, Equatable {
+    let id: String
+    let pattern: String
+    let replacement: String?
+    let sourceLanguage: InputLanguage
+    let targetLanguage: InputLanguage
+    let module: CorrectionModule
+    let kind: RuleKind
+    let applicationBundleIdentifier: String?
+    let confirmations: Int
+    let lastConfirmedAt: Date
+    let learnedRuleID: Int64?
+}
+
+struct LearningProof {
+    let id: String
+    let pattern: String
+    let replacement: String?
+    let sourceLanguage: InputLanguage
+    let targetLanguage: InputLanguage
+    let module: CorrectionModule
+    let kind: RuleKind
+    let applicationBundleIdentifier: String?
+    let confirmedAt: Date
+}
+
+enum PersonalWordValidation {
+    static func normalized(_ word: String, language: InputLanguage) -> String? {
+        let value = word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(with: Locale(identifier: "en_US_POSIX")).precomposedStringWithCanonicalMapping
+        guard (1...64).contains(value.count), value.first?.isLetter == true, value.last?.isLetter == true else { return nil }
+        let alphabet = language == .english ? CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz")
+            : CharacterSet(charactersIn: "абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
+        guard value.unicodeScalars.allSatisfy({ alphabet.contains($0) || "-'’".unicodeScalars.contains($0)
+            || (language == .english && (0x00C0...0x024F).contains($0.value) && CharacterSet.letters.contains($0)) }) else { return nil }
+        return value
+    }
 }

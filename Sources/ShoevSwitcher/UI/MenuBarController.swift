@@ -16,7 +16,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private lazy var spellItem = makeItem("Модуль Spell включён", #selector(toggleSpell))
     private lazy var hoverIndicatorItem = makeItem("Показывать флаг у курсора", #selector(toggleHoverIndicator))
     private lazy var journalItem = makeItem("Журнал исправлений", #selector(toggleJournal))
-    private lazy var fullDiaryItem = makeItem("Полный дневник", #selector(toggleFullDiary))
+    private lazy var fullDiaryItem = makeItem("Записывать обычный набор в журнал", #selector(toggleFullDiary))
     private lazy var launchAtLoginItem = makeItem("Запускать при входе", #selector(toggleLaunchAtLogin))
     private lazy var permissionItem = makeItem("Выдать системные разрешения…", #selector(requestPermissions))
 
@@ -91,7 +91,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(journalItem)
         menu.addItem(fullDiaryItem)
-        menu.addItem(makeItem("Открыть дневник…", #selector(showJournal)))
+        menu.addItem(makeItem("Открыть журнал…", #selector(showJournal)))
         menu.addItem(.separator())
         menu.addItem(launchAtLoginItem)
         menu.addItem(permissionItem)

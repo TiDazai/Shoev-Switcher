@@ -8,13 +8,14 @@ final class UnifiedInputCoordinator: KeyboardMonitorDelegate {
     private let defaults: UserDefaults
     private let standaloneRunning: () -> Bool
     private let ownWindowFocused: () -> Bool
+    private let learning: AdaptiveLearningController?
 
     init(switcher: KeyboardMonitorDelegate, spell: KeyboardMonitorDelegate,
          conversionPending: @escaping () -> Bool, defaults: UserDefaults = .standard,
          standaloneRunning: @escaping () -> Bool = {
              !NSRunningApplication.runningApplications(withBundleIdentifier: "com.shoev.spell").isEmpty
          },
-         ownWindowFocused: @escaping () -> Bool = {
+         learning: AdaptiveLearningController? = nil, ownWindowFocused: @escaping () -> Bool = {
              NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Bundle.main.bundleIdentifier
          }) {
         self.switcher = switcher
@@ -23,13 +24,16 @@ final class UnifiedInputCoordinator: KeyboardMonitorDelegate {
         self.defaults = defaults
         self.standaloneRunning = standaloneRunning
         self.ownWindowFocused = ownWindowFocused
+        self.learning = learning
     }
     func keyboardMonitorDidResetInput(_ monitor: KeyboardMonitor) {
+        learning?.cancelAll()
         switcher.keyboardMonitorDidResetInput(monitor)
         spell.keyboardMonitorDidResetInput(monitor)
     }
     func keyboardMonitor(_ monitor: KeyboardMonitor, keyDown event: CGEvent, text: String, keyCode: CGKeyCode) -> Bool {
         guard !ownWindowFocused() else { keyboardMonitorDidResetInput(monitor); return false }
+        learning?.observe(event: event, text: text, keyCode: keyCode)
         let switchingEnabled = defaults.bool(forKey: PreferenceKey.enabled)
         let consumed: Bool
         if switchingEnabled {

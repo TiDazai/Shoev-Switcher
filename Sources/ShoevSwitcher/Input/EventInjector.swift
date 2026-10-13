@@ -7,14 +7,24 @@ protocol TextReplacing {
     func replace(original: String, with replacement: String, trailingEvent: CGEvent?, context: TextReplacementContext) -> Bool
     func replaceAfterDelimiter(original: String, with replacement: String, trailingEvent: CGEvent,
                                context: TextReplacementContext, completion: @escaping () -> Void) -> Bool
+    func replaceConfirmed(original: String, with replacement: String, preservingDelimiter: String,
+                          context: TextReplacementContext, completion: @escaping () -> Void) -> Bool
 }
 extension TextReplacing {
+    func replaceConfirmed(original: String, with replacement: String, preservingDelimiter: String,
+                          context: TextReplacementContext, completion: @escaping () -> Void) -> Bool {
+        let accepted = replace(original: original + preservingDelimiter, with: replacement + preservingDelimiter,
+            trailingEvent: nil, context: context)
+        if accepted { completion() }
+        return accepted
+    }
     func replaceAfterDelimiter(original: String, with replacement: String, trailingEvent: CGEvent,
                                context: TextReplacementContext, completion: @escaping () -> Void) -> Bool {
         let consumed = replace(original: original, with: replacement, trailingEvent: trailingEvent, context: context)
         if consumed { completion() }
         return consumed
     }
+
 }
 
 final class EventInjector: TextReplacing {
@@ -66,6 +76,11 @@ final class EventInjector: TextReplacing {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01, execute: attempt)
         return false
+    }
+
+    func replaceConfirmed(original: String, with replacement: String, preservingDelimiter: String,
+                          context: TextReplacementContext, completion: @escaping () -> Void) -> Bool {
+        perform(original: original, with: replacement, context: context, preservingDelimiter: preservingDelimiter, completion: completion)
     }
 
     private func perform(original: String, with replacement: String, trailingEvent: CGEvent? = nil,

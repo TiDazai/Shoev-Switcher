@@ -148,7 +148,7 @@ final class SpellInputEngine: KeyboardMonitorDelegate {
             replacementWord = found.replacement
             correction = found
         }
-        if capitalizeWord, !editingWord, defaults.bool(forKey: SpellPreferenceKey.automaticCapitalization) {
+        if capitalizeWord, !editingWord, !corrector.isProtected(word), defaults.bool(forKey: SpellPreferenceKey.automaticCapitalization) {
             replacementWord = punctuator.capitalized(replacementWord)
         }
         if !word.isEmpty {
@@ -181,7 +181,8 @@ final class SpellInputEngine: KeyboardMonitorDelegate {
             guard injector.replaceAfterDelimiter(deleteCount: edit.deleteCount, with: edit.text,
                 trailingEvent: trailingEvent, context: caret, completion: { [weak self] in
                     guard let self else { return }
-                    if let correction { self.journal.record(correction, application: application) }
+                    self.journal.record(correction ?? Correction(original: originalPhrase, replacement: replacement), application: application,
+                        expectedPrefix: String(caret.prefix.dropLast(originalPhrase.count)) + replacement + delimiter)
                     // Recover phrase context only if no following word has
                     // started while the renderer acknowledged the edit.
                     if self.phrase.isEmpty, !endsSentence { self.phrase = replacement + delimiter }

@@ -1,16 +1,25 @@
-import Foundation
+import AppKit
 
 final class SpellCorrectionEngine {
     private static let protectedWords: Set<String> = ["shoev"]
     private let lexicon: WordScoring
     private let defaults: UserDefaults
+    private let rules: RuleStore?
+    private let application: () -> String?
 
-    init(lexicon: WordScoring = SpellLexicon.shared, defaults: UserDefaults = .standard) {
+    init(lexicon: WordScoring = SpellLexicon.shared, defaults: UserDefaults = .standard,
+         rules: RuleStore? = nil, application: @escaping () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }) {
         self.lexicon = lexicon
         self.defaults = defaults
+        self.rules = rules; self.application = application
     }
 
     func correction(for original: String) -> Correction? {
+        if let language = SpellLanguage.detect(in: original),
+           let decision = rules?.spellingDecision(original, language: language == .english ? .english : .russian, application: application()) {
+            if case .convert(let candidate) = decision { return Correction(original: original, replacement: candidate.replacement) }
+            return nil
+        }
         let normalized = original.lowercased(with: Locale(identifier: "en_US_POSIX"))
         guard Self.protectedWords.contains(normalized) == false,
               original.allSatisfy({ $0.isLetter }),
@@ -25,7 +34,8 @@ final class SpellCorrectionEngine {
 
         let candidates = editsAtDistanceOne(from: normalized, language: language)
             .compactMap { word -> SpellingCandidate? in
-                guard let score = lexicon.score(for: word, language: language) else { return nil }
+                let personal = originalScore == nil ? rules?.personalSpellingScore(word, language: language == .english ? .english : .russian, application: application()) : nil
+                guard let score = lexicon.score(for: word, language: language) ?? personal else { return nil }
                 return SpellingCandidate(word: word, score: score)
             }
             .sorted { lhs, rhs in
@@ -38,6 +48,11 @@ final class SpellCorrectionEngine {
             guard originalScore < 180, best.score >= 400, best.score - originalScore >= 200 else { return nil }
         }
         return Correction(original: original, replacement: restoreCase(of: original, in: best.word))
+    }
+
+    func isProtected(_ word: String) -> Bool {
+        guard let language = SpellLanguage.detect(in: word) else { return false }
+        return rules?.spellingDecision(word, language: language == .english ? .english : .russian, application: application()) == .keep
     }
 
     func editsAtDistanceOne(from word: String, language: SpellLanguage) -> Set<String> {

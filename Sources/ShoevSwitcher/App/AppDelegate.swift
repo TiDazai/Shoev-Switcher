@@ -11,8 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var spellEngine: SpellInputEngine?
     private var coordinator: UnifiedInputCoordinator?
     private var menuBarController: MenuBarController?
-    private var journalWindowController: JournalWindowController?
-    private var journalContent: NSView?
+    private var learning: AdaptiveLearningController?
     private var applicationWindowController: ApplicationWindowController?
     private var applicationModel: ApplicationModel?
     private var hoverIndicator: TextInputHoverIndicator?
@@ -31,27 +30,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Preferences.registerDefaults()
         SpellPreferences.register()
         journalStore = try? JournalStore()
-        if let journalStore { ruleStore.replaceRules(journalStore.loadRules()) }
+        if let journalStore {
+            ruleStore.replaceRules(journalStore.loadRules())
+            ruleStore.replaceWords(journalStore.loadPersonalWords())
+        }
+        let learner = AdaptiveLearningController(store: journalStore, rulesChanged: { [weak self] in self?.reloadKnowledge() })
+        learning = learner
         let profiles = ApplicationLanguageProfileStore()
         let notifier = CorrectionNotifier()
         applicationProfiles = profiles
         correctionNotifier = notifier
         let engine = InputEngine(sourceManager: sourceManager,
             detector: LanguageDetector(rules: ruleStore), ruleStore: ruleStore, journalStore: journalStore,
-            injector: injector, correctionNotifier: notifier, applicationProfiles: profiles)
+            injector: injector, correctionNotifier: notifier, applicationProfiles: profiles, learning: learner)
         inputEngine = engine
 
-        let model = ApplicationModel(monitor: keyboardMonitor, sourceManager: sourceManager)
+        let knowledge = journalStore.map { KnowledgeModel(store: $0, changed: { [weak self] in self?.reloadKnowledge() }) }
+        let model = ApplicationModel(monitor: keyboardMonitor, sourceManager: sourceManager, knowledge: knowledge)
         applicationModel = model
-        let spell = SpellInputEngine(injector: SpellTextInjector(injector: injector),
-            journal: SpellJournalStore(store: journalStore, didCorrect: { [weak self] in
+        let spell = SpellInputEngine(corrector: SpellCorrectionEngine(rules: ruleStore), injector: SpellTextInjector(injector: injector),
+            journal: SpellJournalStore(store: journalStore, learning: learner, didCorrect: { [weak self] correction in
                 guard let self else { return }
-                self.inputEngine?.keyboardMonitorDidResetInput(self.keyboardMonitor)
+                self.inputEngine?.externalTextDidChange(correction)
             }))
         spellEngine = spell
         let pipeline = UnifiedInputCoordinator(switcher: engine, spell: spell,
             conversionPending: { [weak engine] in engine?.didScheduleAutomaticCorrection == true },
-            standaloneRunning: { [weak model] in model?.standaloneSpellRunning == true })
+            standaloneRunning: { [weak model] in model?.standaloneSpellRunning == true }, learning: learner)
         coordinator = pipeline
         keyboardMonitor.delegate = pipeline
 
@@ -64,8 +69,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         layoutMemory.start()
 
         model.preferencesChanged = { [weak self] in self?.applyPreferences() }
-        model.journalView = { [weak self] in self?.makeJournalContent() ?? NSView() }
-        model.reloadJournal = { [weak self] in self?.journalWindowController?.reload() }
         applicationWindowController = ApplicationWindowController(model: model)
 
         menuBarController = MenuBarController(monitor: keyboardMonitor, sourceManager: sourceManager,
@@ -90,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionTimer?.invalidate()
         applicationModel?.stopRefresh()
         injector.cancelPending()
+        learning?.cancelAll()
         hoverIndicator?.stop()
         correctionNotifier?.hide()
         applicationProfiles?.flush()
@@ -112,18 +116,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.menuBarController?.refresh()
         }
     }
-    private func makeJournalContent() -> NSView {
-        if let journalContent { return journalContent }
-        guard let journalStore else {
-            return NSTextField(wrappingLabelWithString: "Не удалось открыть локальный дневник. Проверь доступ к Application Support.")
+    private func reloadKnowledge() {
+        guard let journalStore else { return }
+        journalStore.rules { [weak self] rules in
+            journalStore.personalWords { [weak self] words in
+                self?.ruleStore.replaceKnowledge(rules: rules, words: words)
+                NotificationCenter.default.post(name: .shoevKnowledgeChanged, object: nil)
+            }
         }
-        let controller = JournalWindowController(store: journalStore,
-            onRulesChanged: { [weak self] in self?.inputEngine?.reloadRules() })
-        journalWindowController = controller
-        let content = controller.detachContentView()
-        journalContent = content
-        controller.reload()
-        return content
     }
     private func configureMainMenu() {
         let main = NSMenu()

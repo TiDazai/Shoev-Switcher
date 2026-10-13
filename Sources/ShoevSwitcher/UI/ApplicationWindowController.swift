@@ -3,14 +3,16 @@ import SwiftUI
 import ServiceManagement
 
 enum ApplicationPage: String, CaseIterable, Identifiable {
-    case overview = "Обзор", switcher = "Switcher", spell = "Spell", journal = "Дневник"
+    case overview = "Обзор", switcher = "Switcher", spell = "Spell", journal = "Журнал", diary = "Дневник", dictionary = "Словарь"
     var id: String { rawValue }
     var symbol: String {
         switch self {
         case .overview: return "square.grid.2x2"
         case .switcher: return "arrow.left.arrow.right"
         case .spell: return "text.badge.checkmark"
-        case .journal: return "book.closed"
+        case .journal: return "clock.arrow.circlepath"
+        case .diary: return "book.closed"
+        case .dictionary: return "character.book.closed"
         }
     }
 }
@@ -24,17 +26,17 @@ final class ApplicationModel: ObservableObject {
     @Published private(set) var loginEnabled = false
     let monitor: KeyboardMonitor
     let sourceManager: InputSourceManager
+    let knowledge: KnowledgeModel?
     var preferencesChanged: () -> Void = {}
-    var journalView: () -> NSView = { NSView() }
-    var reloadJournal: () -> Void = {}
     private var timer: Timer?
     private var observers: [NSObjectProtocol] = []
     private var preferenceObserver: NSObjectProtocol?
     private var fingerprint = ""
 
-    init(monitor: KeyboardMonitor, sourceManager: InputSourceManager) {
+    init(monitor: KeyboardMonitor, sourceManager: InputSourceManager, knowledge: KnowledgeModel? = nil) {
         self.monitor = monitor
         self.sourceManager = sourceManager
+        self.knowledge = knowledge
         refresh()
         fingerprint = configurationFingerprint()
         for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
@@ -114,6 +116,7 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
     func open(_ page: ApplicationPage = .overview) {
         model.page = page
         model.startRefresh()
+        if [.journal, .diary, .dictionary].contains(page) { model.knowledge?.refresh(includeJournal: page == .journal) }
         NSApp.activate(ignoringOtherApps: true)
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -121,7 +124,7 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) { model.stopRefresh() }
 }
 
-private enum Brand {
+enum Brand {
     static let gold = Color(red: 0.86, green: 0.74, blue: 0.49)
     static let platinum = Color(red: 0.89, green: 0.90, blue: 0.91)
     static let selection = Color(red: 0.23, green: 0.25, blue: 0.28)
@@ -166,7 +169,9 @@ private struct ApplicationView: View {
                 case .overview: overview
                 case .switcher: switcherSettings
                 case .spell: spellSettings
-                case .journal: LegacyPane(view: model.journalView()).onAppear { model.reloadJournal() }
+                case .journal, .diary, .dictionary:
+                    if let knowledge = model.knowledge { KnowledgePageView(page: model.page, knowledge: knowledge) }
+                    else { Text("Не удалось открыть личную базу. Проверь доступ к Application Support.").foregroundStyle(.orange) }
                 }
             }
             .padding(28)
@@ -220,7 +225,9 @@ private struct ApplicationView: View {
         case .overview: return "Правильная раскладка. Чистый текст. Одно приложение."
         case .switcher: return "Раскладки, контекст, горячие клавиши и исключения Switcher."
         case .spell: return "Независимые настройки орфографии, регистра и пунктуации."
-        case .journal: return "Локальный дневник обоих модулей, правила и обучение."
+        case .journal: return "История исправлений и их подтверждённые результаты."
+        case .diary: return "Только личные правила и проверенное самообучение."
+        case .dictionary: return "Русский и английский корпус. Ваши слова — отдельно отмечены."
         }
     }
 
@@ -291,7 +298,8 @@ private struct ApplicationView: View {
                     Toggle("Исправлять русские и английские опечатки", isOn: $correctWords)
                     Toggle("Заглавная буква в начале предложения", isOn: $capitalize)
                     Toggle("Помогать с русской пунктуацией", isOn: $punctuation)
-                    Toggle("Сохранять исправления Spell в общем дневнике", isOn: $spellJournal)
+                    Toggle("Сохранять исправления Spell в журнале", isOn: $spellJournal)
+                    Toggle("Самообучение обоих модулей по подтверждённым повторениям", isOn: $learning)
                     Divider()
                     Stepper("Минимальная длина слова: \(minimumLength)", value: $minimumLength, in: 3...8)
                     Stepper("Порог уверенности: \(minimumScore)", value: $minimumScore, in: 250...800, step: 25)
@@ -333,13 +341,13 @@ private struct ApplicationView: View {
                     Toggle("Показывать короткое уведомление об исправлении", isOn: $correctionNotifications)
                 }.card().disabled(!switcherEnabled)
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Самообучение и дневник").font(.system(size: 16, weight: .semibold))
-                    Toggle("Учиться после повторных ручных исправлений", isOn: $learning).disabled(!manualConversion)
-                    Toggle("Сохранять исправления Switcher в общем дневнике", isOn: $switcherJournal)
-                    Toggle("Сохранять все завершённые слова", isOn: $fullDiary).disabled(!switcherJournal)
-                    Text("Полный дневник дополнительно сохраняет набранные слова. Данные остаются на этом Mac и шифруются.")
+                    Text("Самообучение и журнал").font(.system(size: 16, weight: .semibold))
+                    Toggle("Самообучение обоих модулей по подтверждённым повторениям", isOn: $learning)
+                    Toggle("Сохранять исправления Switcher в журнале", isOn: $switcherJournal).disabled(!switcherEnabled)
+                    Toggle("Сохранять все завершённые слова", isOn: $fullDiary).disabled(!switcherEnabled || !switcherJournal)
+                    Text("Полная история дополнительно сохраняет набранные слова. По умолчанию выключена. Дневник содержит только личные правила.")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
-                }.card().disabled(!switcherEnabled)
+                }.card()
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Источники ввода").font(.system(size: 16, weight: .semibold))
                     sourcePicker("English", language: .english, selection: $englishInputSource)
@@ -385,12 +393,7 @@ private struct ApplicationView: View {
     }
 }
 
-private struct LegacyPane: NSViewRepresentable {
-    let view: NSView
-    func makeNSView(context: Context) -> NSView { view }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-}
-private extension View {
+extension View {
     func card() -> some View {
         self.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(Brand.panel)
             .clipShape(RoundedRectangle(cornerRadius: 16))

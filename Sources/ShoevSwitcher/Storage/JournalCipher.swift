@@ -37,6 +37,12 @@ final class JournalCipher {
         return combined
     }
 
+    /// Indexed lookup without storing the word or an unkeyed dictionary hash.
+    func fingerprint(_ value: String) -> String {
+        HMAC<SHA256>.authenticationCode(for: Data(value.utf8), using: key)
+            .map { String(format: "%02x", $0) }.joined()
+    }
+
     func decrypt(_ data: Data) throws -> String {
         let box = try AES.GCM.SealedBox(combined: data)
         let clear = try AES.GCM.open(box, using: key)

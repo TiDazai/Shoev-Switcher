@@ -29,6 +29,7 @@ final class InputEngine: KeyboardMonitorDelegate {
     private var completedPrefix: String?
     private let readContext: () -> TextReplacementContext?
     private let frontmost: () -> NSRunningApplication?
+    private let learning: AdaptiveLearningController?
     private(set) var didScheduleAutomaticCorrection = false
 
     init(
@@ -42,7 +43,8 @@ final class InputEngine: KeyboardMonitorDelegate {
         correctionNotifier: CorrectionNotifier = CorrectionNotifier(),
         applicationProfiles: ApplicationLanguageProfileStore = ApplicationLanguageProfileStore(),
         readContext: @escaping () -> TextReplacementContext? = { TextReplacementContextReader().read() },
-        frontmost: @escaping () -> NSRunningApplication? = { NSWorkspace.shared.frontmostApplication }
+        frontmost: @escaping () -> NSRunningApplication? = { NSWorkspace.shared.frontmostApplication },
+        learning: AdaptiveLearningController? = nil
     ) {
         self.sourceManager = sourceManager
         self.detector = detector
@@ -55,11 +57,21 @@ final class InputEngine: KeyboardMonitorDelegate {
         self.applicationProfiles = applicationProfiles
         self.readContext = readContext
         self.frontmost = frontmost
+        self.learning = learning
     }
 
     func reloadRules() {
         guard let journalStore else { return }
         ruleStore.replaceRules(journalStore.loadRules())
+        ruleStore.replaceWords(journalStore.loadPersonalWords())
+    }
+
+    func externalTextDidChange(_ correction: Correction) {
+        current.clear(); tokenStart = nil; lastCompleted = nil; completedPrefix = nil; completedField = nil
+        if !correction.original.contains(where: { $0.isWhitespace }), !correction.replacement.contains(where: { $0.isWhitespace }),
+           let index = recentTokens.lastIndex(where: { $0.text.lowercased() == correction.original.lowercased() }) {
+            recentTokens[index] = ContextToken(text: correction.replacement, language: recentTokens[index].language)
+        }
     }
 
     func keyboardMonitorDidResetInput(_ monitor: KeyboardMonitor) {
@@ -285,171 +297,78 @@ final class InputEngine: KeyboardMonitorDelegate {
     private func performManualConversion() {
         let application = frontmost()
         let pid = application?.processIdentifier ?? 0
-
-        guard defaults.bool(forKey: PreferenceKey.enabled),
-              !isExcluded(application),
-              !sensitiveInputGuard.isSensitive(processIdentifier: application?.processIdentifier) else {
-            return
-        }
-
+        guard defaults.bool(forKey: PreferenceKey.enabled), !isExcluded(application),
+              !sensitiveInputGuard.isSensitive(processIdentifier: application?.processIdentifier) else { return }
         if let sourceLanguage = sourceManager.currentLanguage(),
-           let conversion = selectionConverter.convertSelection(
-               sourceLanguage: sourceLanguage,
-               sourceManager: sourceManager,
-               injector: injector
-           ) {
+           let conversion = selectionConverter.convertSelection(sourceLanguage: sourceLanguage,
+                sourceManager: sourceManager, injector: injector) {
             _ = sourceManager.select(conversion.targetLanguage)
+            completedPrefix = nil
             correctionNotifier.show(original: conversion.original, replacement: conversion.replacement)
-            log(
-                kind: .manualCorrection,
-                original: conversion.original,
-                replacement: conversion.replacement,
-                sourceLanguage: conversion.sourceLanguage,
-                targetLanguage: conversion.targetLanguage,
-                application: application
-            )
-            if defaults.bool(forKey: PreferenceKey.applicationContext) {
-                applicationProfiles.observe(
-                    conversion.targetLanguage,
-                    applicationBundleIdentifier: application?.bundleIdentifier
-                )
-            }
+            log(kind: .manualCorrection, original: conversion.original, replacement: conversion.replacement,
+                sourceLanguage: conversion.sourceLanguage, targetLanguage: conversion.targetLanguage, application: application)
+            applicationProfiles.observe(conversion.targetLanguage, applicationBundleIdentifier: application?.bundleIdentifier)
             resetAll()
             return
         }
-
-        if !current.isEmpty,
-           let sourceLanguage = sourceManager.currentLanguage() {
-            let targetLanguage: InputLanguage = sourceLanguage == .english ? .russian : .english
+        if !current.isEmpty, let source = sourceManager.currentLanguage() {
+            let target: InputLanguage = source == .english ? .russian : .english
             let original = current.visibleText
-            guard let alternative = sourceManager.text(for: current.strokes, in: targetLanguage),
-                  alternative != original else { return }
-            guard let context = verifiedCurrentContext(),
-                  injector.replace(original: original, with: alternative, trailingEvent: nil, context: context) else { resetAll(); return }
-            _ = sourceManager.select(targetLanguage)
-            completedField = context.element
-            completedPrefix = String(context.prefix.dropLast(original.count)) + alternative
-            correctionNotifier.show(original: original, replacement: alternative)
-            lastCompleted = CompletedToken(
-                displayedText: alternative,
-                alternativeText: original,
-                displayedLanguage: targetLanguage,
-                alternativeLanguage: sourceLanguage,
-                terminator: "",
-                processIdentifier: pid,
-                completedAt: Date(),
-                correctionKind: .manualCorrection
-            )
-            log(
-                kind: .manualCorrection,
-                original: original,
-                replacement: alternative,
-                sourceLanguage: sourceLanguage,
-                targetLanguage: targetLanguage,
-                application: application
-            )
-            recordManualLearning(candidateOriginal: original, replacement: alternative, sourceLanguage: sourceLanguage, targetLanguage: targetLanguage)
-            recordToken(alternative, language: targetLanguage, terminator: "")
-            current.clear()
+            guard let alternative = sourceManager.text(for: current.strokes, in: target), alternative != original,
+                  let context = verifiedCurrentContext() else { return }
+            if !manualReplace(original: original, replacement: alternative, source: source, target: target,
+                terminator: "", context: context, application: application, kind: .manualCorrection, removePreviousToken: false) { resetAll() }
             return
         }
-
-        guard let completed = lastCompleted,
-              completed.processIdentifier == pid,
+        guard let completed = lastCompleted, completed.processIdentifier == pid,
               Date().timeIntervalSince(completed.completedAt) <= 8 else { return }
-        if completed.correctionKind == .correction {
-            _ = undoLastAutomaticCorrection(application: application)
-            return
-        }
-        guard let context = verifiedCompletedContext(),
-              injector.replace(original: completed.displayedText + completed.terminator,
-                with: completed.alternativeText + completed.terminator, trailingEvent: nil, context: context) else { resetAll(); return }
-        _ = sourceManager.select(completed.alternativeLanguage)
-        completedPrefix = String(context.prefix.dropLast(completed.displayedText.count + completed.terminator.count))
-            + completed.alternativeText + completed.terminator
-        correctionNotifier.show(original: completed.displayedText, replacement: completed.alternativeText)
-        log(
-            kind: .manualCorrection,
-            original: completed.displayedText,
-            replacement: completed.alternativeText,
-            sourceLanguage: completed.displayedLanguage,
-            targetLanguage: completed.alternativeLanguage,
-            application: application
-        )
-        if completed.correctionKind == nil {
-            recordManualLearning(
-                candidateOriginal: completed.displayedText,
-                replacement: completed.alternativeText,
-                sourceLanguage: completed.displayedLanguage,
-                targetLanguage: completed.alternativeLanguage
-            )
-        }
-        if !recentLanguages.isEmpty { recentLanguages.removeLast() }
-        if !recentTokens.isEmpty { recentTokens.removeLast() }
-        recordToken(
-            completed.alternativeText,
-            language: completed.alternativeLanguage,
-            terminator: completed.terminator
-        )
-        lastCompleted = CompletedToken(
-            displayedText: completed.alternativeText,
-            alternativeText: completed.displayedText,
-            displayedLanguage: completed.alternativeLanguage,
-            alternativeLanguage: completed.displayedLanguage,
-            terminator: completed.terminator,
-            processIdentifier: pid,
-            completedAt: Date(),
-            correctionKind: .manualCorrection
-        )
+        if completed.correctionKind == .correction { _ = undoLastAutomaticCorrection(application: application); return }
+        guard let context = verifiedCompletedContext() else { resetAll(); return }
+        if !manualReplace(original: completed.displayedText, replacement: completed.alternativeText,
+            source: completed.displayedLanguage, target: completed.alternativeLanguage, terminator: completed.terminator,
+            context: context, application: application, kind: .manualCorrection, removePreviousToken: true) { resetAll() }
     }
 
     private func undoLastAutomaticCorrection(application: NSRunningApplication?) -> Bool {
-        let pid = application?.processIdentifier ?? 0
-        guard defaults.bool(forKey: PreferenceKey.undoAutomaticCorrection),
-              let completed = lastCompleted,
-              completed.correctionKind == .correction,
-              completed.processIdentifier == pid,
-              Date().timeIntervalSince(completed.completedAt) <= 5 else { return false }
-
-        guard let context = verifiedCompletedContext(),
-              injector.replace(original: completed.displayedText + completed.terminator,
-                with: completed.alternativeText + completed.terminator, trailingEvent: nil, context: context) else { resetAll(); return false }
-        _ = sourceManager.select(completed.alternativeLanguage)
-        correctionNotifier.show(original: completed.displayedText, replacement: completed.alternativeText)
-        log(
-            kind: .undone,
-            original: completed.displayedText,
-            replacement: completed.alternativeText,
-            sourceLanguage: completed.displayedLanguage,
-            targetLanguage: completed.alternativeLanguage,
-            application: application
-        )
-        lastCompleted = nil
-        if !recentLanguages.isEmpty { recentLanguages.removeLast() }
-        if !recentTokens.isEmpty { recentTokens.removeLast() }
-        recordToken(
-            completed.alternativeText,
-            language: completed.alternativeLanguage,
-            terminator: completed.terminator
-        )
-        return true
+        guard defaults.bool(forKey: PreferenceKey.undoAutomaticCorrection), let completed = lastCompleted,
+              completed.correctionKind == .correction, completed.processIdentifier == (application?.processIdentifier ?? 0),
+              Date().timeIntervalSince(completed.completedAt) <= 5, let context = verifiedCompletedContext() else { return false }
+        let accepted = manualReplace(original: completed.displayedText, replacement: completed.alternativeText,
+            source: completed.displayedLanguage, target: completed.alternativeLanguage, terminator: completed.terminator,
+            context: context, application: application, kind: .undone, removePreviousToken: true)
+        if !accepted { resetAll() }
+        return accepted
     }
 
-    private func recordManualLearning(
-        candidateOriginal: String,
-        replacement: String,
-        sourceLanguage: InputLanguage,
-        targetLanguage: InputLanguage
-    ) {
-        guard defaults.bool(forKey: PreferenceKey.automaticLearning) else { return }
-        journalStore?.recordManualConversion(
-            original: candidateOriginal,
-            replacement: replacement,
-            sourceLanguage: sourceLanguage,
-            targetLanguage: targetLanguage
-        ) { [weak self] learned in
-            if learned { self?.reloadRules() }
-        }
+    private func manualReplace(original: String, replacement: String, source: InputLanguage, target: InputLanguage,
+                               terminator: String, context: TextReplacementContext, application: NSRunningApplication?,
+                               kind: JournalEventKind, removePreviousToken: Bool) -> Bool {
+        let precedingLanguages = recentLanguages
+        let precedingTokens = recentTokens
+        return injector.replaceConfirmed(original: original, with: replacement, preservingDelimiter: terminator,
+            context: context, completion: { [weak self] in
+                guard let self, self.defaults.bool(forKey: PreferenceKey.enabled),
+                      self.frontmost()?.processIdentifier == application?.processIdentifier else { return }
+                self.resetAll()
+                self.recentLanguages = precedingLanguages
+                self.recentTokens = precedingTokens
+                if removePreviousToken {
+                    if !self.recentLanguages.isEmpty { self.recentLanguages.removeLast() }
+                    if !self.recentTokens.isEmpty { self.recentTokens.removeLast() }
+                }
+                _ = self.sourceManager.select(target)
+                self.completedField = context.element
+                self.completedPrefix = String(context.prefix.dropLast(original.count + terminator.count)) + replacement + terminator
+                if kind != .undone {
+                    self.lastCompleted = CompletedToken(displayedText: replacement, alternativeText: original,
+                        displayedLanguage: target, alternativeLanguage: source, terminator: terminator,
+                        processIdentifier: application?.processIdentifier ?? 0, completedAt: Date(), correctionKind: .manualCorrection)
+                }
+                self.correctionNotifier.show(original: original, replacement: replacement)
+                self.log(kind: kind, original: original, replacement: replacement, sourceLanguage: source,
+                    targetLanguage: target, application: application)
+                self.recordToken(replacement, language: target, terminator: terminator)
+            })
     }
 
     private func isLetterText(_ text: String) -> Bool {
@@ -488,6 +407,7 @@ final class InputEngine: KeyboardMonitorDelegate {
               punctuationCharacters.contains(text),
               let language = sourceManager.currentLanguage() else { return false }
         return detector.isKnown(current.visibleText, language: language)
+            || ruleStore.isAccepted(current.visibleText, language: language, application: frontmost()?.bundleIdentifier)
     }
 
     private func isExcluded(_ application: NSRunningApplication?) -> Bool {
@@ -520,8 +440,7 @@ final class InputEngine: KeyboardMonitorDelegate {
         targetLanguage: InputLanguage?,
         application: NSRunningApplication?
     ) {
-        guard defaults.bool(forKey: PreferenceKey.journalEnabled) else { return }
-        journalStore?.enqueue(JournalEntry(
+        let entry = JournalEntry(
             id: 0,
             createdAt: Date(),
             applicationBundleIdentifier: application?.bundleIdentifier,
@@ -531,7 +450,12 @@ final class InputEngine: KeyboardMonitorDelegate {
             sourceLanguage: sourceLanguage,
             targetLanguage: targetLanguage,
             kind: kind
-        ))
+        )
+        let journalEnabled = defaults.bool(forKey: PreferenceKey.journalEnabled)
+        if let learning {
+            learning.record(entry, module: .switcher, journalEnabled: journalEnabled,
+                expectedPrefix: kind == .undone ? nil : completedPrefix)
+        } else if journalEnabled { journalStore?.enqueue(entry) }
     }
 
     private func resetAll() {
