@@ -16,7 +16,7 @@ final class ApplicationInterfaceTests: XCTestCase {
         let controller = ApplicationWindowController(model: model)
         XCTAssertEqual(controller.window?.title, "Shoev Switcher")
         XCTAssertEqual(controller.window?.minSize.width, 960)
-        XCTAssertEqual(controller.window?.appearance?.name, .darkAqua)
+        XCTAssertEqual(controller.window?.appearance?.name, .aqua)
         XCTAssertNotNil(controller.window?.contentView)
         controller.window?.close()
     }

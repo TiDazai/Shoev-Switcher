@@ -105,7 +105,7 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Shoev Switcher"
         window.minSize = NSSize(width: 960, height: 740)
-        window.appearance = NSAppearance(named: .darkAqua)
+        window.appearance = NSAppearance(named: .aqua)
         window.backgroundColor = NSColor(Brand.background)
         window.isReleasedWhenClosed = false
         window.center()
@@ -126,16 +126,17 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
 }
 
 enum Brand {
-    static let ink = Color(red: 0.91, green: 0.92, blue: 0.94)
-    static let accent = Color(red: 0.83, green: 0.70, blue: 0.46)
-    static let secondary = Color(red: 0.66, green: 0.69, blue: 0.74)
-    static let selection = Color(red: 0.20, green: 0.22, blue: 0.26)
-    static let background = Color(red: 0.09, green: 0.105, blue: 0.125)
-    static let panel = Color(red: 0.13, green: 0.15, blue: 0.18)
-    static let panelHighlight = Color(red: 0.18, green: 0.20, blue: 0.235)
-    static let sidebar = Color(red: 0.06, green: 0.075, blue: 0.095)
-    static let edge = Color(red: 0.63, green: 0.67, blue: 0.73)
-    static let warning = Color(red: 0.93, green: 0.64, blue: 0.37)
+    static let ink = Color(red: 0.16, green: 0.18, blue: 0.21)
+    static let accent = Color(red: 0.43, green: 0.32, blue: 0.15)
+    static let gold = Color(red: 0.76, green: 0.64, blue: 0.40)
+    static let secondary = Color(red: 0.34, green: 0.37, blue: 0.42)
+    static let selection = Color(red: 0.96, green: 0.95, blue: 0.91)
+    static let background = Color(red: 0.92, green: 0.93, blue: 0.95)
+    static let panel = Color(red: 0.965, green: 0.975, blue: 0.988)
+    static let panelHighlight = Color.white
+    static let sidebar = Color(red: 0.90, green: 0.915, blue: 0.94)
+    static let edge = Color(red: 0.60, green: 0.65, blue: 0.72)
+    static let warning = Color(red: 0.61, green: 0.32, blue: 0.11)
     // Decode once, not each time the status model refreshes. No animation or drawing loop.
     static let surfaceImage = Bundle.module.url(forResource: "MetalSurface", withExtension: "png")
         .flatMap(NSImage.init(contentsOf:))
@@ -167,7 +168,7 @@ struct MetalCatLogo: View {
         if let cat = Brand.catImage {
             Image(nsImage: cat).resizable().scaledToFit()
             .frame(width: width, height: height)
-            .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 2)
+            .shadow(color: .black.opacity(0.16), radius: 2, x: 0, y: 1)
             .accessibilityHidden(true)
         }
     }
@@ -222,7 +223,7 @@ private struct ApplicationView: View {
         .background(MetalBackground())
         .foregroundStyle(Brand.ink)
         .tint(Brand.accent)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 
     private var sidebar: some View {
@@ -246,7 +247,7 @@ private struct ApplicationView: View {
                             }
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(
-                                focusedPage == page ? Brand.accent.opacity(0.8) : model.page == page ? Brand.accent.opacity(0.28) : Color.clear,
+                                focusedPage == page ? Brand.accent.opacity(0.8) : model.page == page ? Brand.gold.opacity(0.65) : Color.clear,
                                 lineWidth: 1))
                     }.buttonStyle(.plain).focused($focusedPage, equals: page).focusEffectDisabled()
                         .accessibilityAddTraits(model.page == page ? .isSelected : [])
@@ -286,7 +287,7 @@ private struct ApplicationView: View {
                         Text("Запускать при входе в macOS")
                         Spacer()
                         Toggle("Автозапуск", isOn: Binding(get: { model.loginEnabled }, set: { _ in model.toggleLogin() }))
-                            .labelsHidden().toggleStyle(.switch)
+                            .labelsHidden().toggleStyle(.switch).tint(Brand.gold)
                     }.font(.system(size: 13))
                     if !model.ready {
                         Button("Выдать системные разрешения…") { model.requestPermissions() }.buttonStyle(.borderedProminent)
@@ -300,7 +301,7 @@ private struct ApplicationView: View {
             HStack {
                 Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(Brand.accent).frame(width: 32, height: 32)
                 Spacer()
-                Toggle(name + " включён", isOn: enabled).labelsHidden().toggleStyle(.switch)
+                Toggle(name + " включён", isOn: enabled).labelsHidden().toggleStyle(.switch).tint(Brand.gold)
             }
             Text(name).font(.system(size: 23, weight: .medium))
             Button("Настроить " + name) { model.page = page }.buttonStyle(.bordered)
@@ -316,7 +317,7 @@ private struct ApplicationView: View {
     private var spellSettings: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Toggle("Модуль Spell включён", isOn: $spellEnabled).toggleStyle(.switch).font(.system(size: 16, weight: .semibold))
+                Toggle("Модуль Spell включён", isOn: $spellEnabled).toggleStyle(.switch).tint(Brand.gold).font(.system(size: 16, weight: .semibold))
                 if model.standaloneSpellRunning { standaloneWarning }
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Исправление текста").font(.system(size: 16, weight: .semibold))
@@ -340,7 +341,7 @@ private struct ApplicationView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Toggle("Модуль Switcher включён", isOn: $switcherEnabled)
-                    .toggleStyle(.switch).font(.system(size: 16, weight: .semibold))
+                    .toggleStyle(.switch).tint(Brand.gold).font(.system(size: 16, weight: .semibold))
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Исправление раскладки").font(.system(size: 16, weight: .semibold))
                     Toggle("Исправлять раскладку автоматически", isOn: $automaticLayout)
@@ -414,6 +415,6 @@ extension View {
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(
                 LinearGradient(colors: [Brand.edge.opacity(0.38), Brand.edge.opacity(0.12)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
-            .shadow(color: .black.opacity(0.22), radius: 10, x: 0, y: 5)
+            .shadow(color: .black.opacity(0.065), radius: 8, x: 0, y: 4)
     }
 }
