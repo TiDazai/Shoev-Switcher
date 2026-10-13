@@ -12,6 +12,41 @@ private final class CapturedInjection: SpellTextInjecting {
 }
 
 final class SpellInputEngineTests: XCTestCase {
+    func testSpellCorrectsTheFirstWordWhenEmptyFieldOmitsCaretRange() {
+        let suite = "EmptySpellEditor-\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        SpellPreferences.register(in: defaults)
+        defaults.set(false, forKey: SpellPreferenceKey.automaticCapitalization)
+        defaults.set(false, forKey: SpellPreferenceKey.automaticPunctuation)
+        var text = ""
+        let field = AXUIElementCreateApplication(999_977)
+        var access = AccessibilityAccess()
+        access.copy = { _, name in
+            if name == kAXRoleAttribute { return kAXTextAreaRole as CFString }
+            if name == kAXValueAttribute { return text as CFString }
+            if name == kAXSelectedTextRangeAttribute, !text.isEmpty {
+                var range = CFRange(location: text.utf16.count, length: 0)
+                return AXValueCreate(.cfRange, &range)
+            }
+            return nil
+        }
+        access.writable = { _, name in name == kAXValueAttribute || name == kAXSelectedTextRangeAttribute }
+        let injector = CapturedInjection()
+        let reader = VerifiedCaretContextReader(access: access, diagnostic: { _ in })
+        let engine = SpellInputEngine(corrector: SpellCorrectionEngine(defaults: defaults), injector: injector,
+            defaults: defaults, readCaret: { reader.read(focusedElement: field) }, frontmost: { nil })
+        let event = CGEvent(keyboardEventSource: nil, virtualKey: 35, keyDown: true)!
+        event.flags = []
+        let monitor = KeyboardMonitor()
+        for c in "превет" {
+            XCTAssertFalse(engine.keyboardMonitor(monitor, keyDown: event, text: String(c), keyCode: 35))
+            text.append(c)
+        }
+        XCTAssertTrue(engine.keyboardMonitor(monitor, keyDown: event, text: " ", keyCode: 49))
+        XCTAssertEqual(injector.calls.count, 1)
+        XCTAssertEqual(injector.calls.first?.0, 4); XCTAssertEqual(injector.calls.first?.1, "ивет")
+    }
     func testCorrectionResumesAfterDeletion() {
         let suite = "SpellInputEngineTests-\(UUID())"
         let defaults = UserDefaults(suiteName: suite)!

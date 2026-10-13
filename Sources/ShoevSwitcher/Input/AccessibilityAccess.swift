@@ -2,6 +2,10 @@ import ApplicationServices
 
 /// Injectable AX boundary. Tests never need to inspect or modify a real app.
 struct AccessibilityAccess {
+    var processID: (AXUIElement) -> pid_t? = { element in
+        var pid: pid_t = 0
+        return AXUIElementGetPid(element, &pid) == .success ? pid : nil
+    }
     var copy: (AXUIElement, String) -> CFTypeRef? = { element, name in
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }

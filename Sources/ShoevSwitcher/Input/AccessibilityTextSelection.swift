@@ -3,6 +3,7 @@ import Foundation
 
 enum TextSelectionTransport: Equatable {
     case range
+    case ranges
     case markers
 }
 
@@ -75,8 +76,13 @@ struct AccessibilityTextSelection {
     }
 
     func canSet(_ context: TextReplacementContext) -> Bool {
-        access.writable(context.element, context.selectionTransport == .markers
-            ? kAXSelectedTextMarkerRangeAttribute as String : kAXSelectedTextRangeAttribute)
+        let attribute: String
+        switch context.selectionTransport {
+        case .range: attribute = kAXSelectedTextRangeAttribute
+        case .ranges: attribute = kAXSelectedTextRangesAttribute
+        case .markers: attribute = kAXSelectedTextMarkerRangeAttribute as String
+        }
+        return access.writable(context.element, attribute)
     }
 
     func set(_ range: CFRange, in context: TextReplacementContext) -> Bool {
@@ -90,6 +96,9 @@ struct AccessibilityTextSelection {
         }
         var nativeRange = range
         guard let value = AXValueCreate(.cfRange, &nativeRange) else { return false }
+        if context.selectionTransport == .ranges {
+            return access.set(context.element, kAXSelectedTextRangesAttribute, [value] as CFArray) == .success
+        }
         return access.set(context.element, kAXSelectedTextRangeAttribute, value) == .success
     }
 }

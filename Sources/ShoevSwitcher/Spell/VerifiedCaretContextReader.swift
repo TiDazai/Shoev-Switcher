@@ -20,14 +20,18 @@ final class VerifiedCaretContextReader {
 
     func read() -> CaretContext? {
         let deadline = ProcessInfo.processInfo.systemUptime + 0.075
-        // Office's system-wide focus can point at a layout container while the
-        // application's focus points at the actual page text control.
-        if let app = focusedApplication(), app.bundle == "com.microsoft.Word" {
+        let app = focusedApplication()
+        var triedFocus: AXUIElement?
+        // Rich editors can expose a wrapper as system-wide focus while their
+        // own focused element is the actual editor. Do not special-case Word.
+        if let app {
             let application = AXUIElementCreateApplication(app.pid)
             AXUIElementSetMessagingTimeout(application, 0.03)
             if let focused = access.copy(application, kAXFocusedUIElementAttribute),
                CFGetTypeID(focused) == AXUIElementGetTypeID() {
                 let element = focused as! AXUIElement
+                guard access.processID(element) == app.pid else { diagnostic(.contextChanged); return nil }
+                triedFocus = element
                 if access.copy(element, kAXSubroleAttribute) as? String == kAXSecureTextFieldSubrole {
                     diagnostic(.secureField); return nil
                 }
@@ -39,7 +43,10 @@ final class VerifiedCaretContextReader {
         AXUIElementSetMessagingTimeout(system, 0.03)
         guard let focused = access.copy(system, kAXFocusedUIElementAttribute),
               CFGetTypeID(focused) == AXUIElementGetTypeID() else { diagnostic(.missingFocus); return nil }
-        return read(focusedElement: focused as! AXUIElement, deadline: deadline)
+        let element = focused as! AXUIElement
+        if let app, access.processID(element) != app.pid { diagnostic(.contextChanged); return nil }
+        if let triedFocus, CFEqual(triedFocus, element) { return nil }
+        return read(focusedElement: element, deadline: deadline)
     }
 
     func read(focusedElement: AXUIElement, deadline: TimeInterval = ProcessInfo.processInfo.systemUptime + 0.075) -> CaretContext? {
@@ -47,23 +54,53 @@ final class VerifiedCaretContextReader {
         var failure = SpellInputDiagnostic.missingRange
         // Web editors may focus a child inside the editable field. Stay within
         // its nearest text-control ancestors; never search a whole document.
-        for depth in 0..<4 {
+        for depth in 0..<8 {
             guard ProcessInfo.processInfo.systemUptime < deadline else { break }
             AXUIElementSetMessagingTimeout(element, 0.03)
             if access.copy(element, kAXSubroleAttribute) as? String == kAXSecureTextFieldSubrole {
                 diagnostic(.secureField); return nil
             }
             let role = access.copy(element, kAXRoleAttribute) as? String
-            if depth == 0 || role == kAXTextFieldRole || role == kAXTextAreaRole {
-                if let rawRange = access.copy(element, kAXSelectedTextRangeAttribute),
-                   CFGetTypeID(rawRange) == AXValueGetTypeID() {
-                    var range = CFRange()
-                    if AXValueGetValue(rawRange as! AXValue, .cfRange, &range) {
+            let isTextControl = role == kAXTextFieldRole || role == kAXTextAreaRole || role == kAXComboBoxRole
+            let editable = isTextControl || access.copy(element, "AXEditable") as? Bool == true
+            let webArea = role == "AXWebArea"
+            if depth == 0 || editable || webArea {
+                if !webArea {
+                    let rawRange = access.copy(element, kAXSelectedTextRangeAttribute)
+                    let rangesValue = access.copy(element, kAXSelectedTextRangesAttribute)
+                    let rawRanges = rangesValue as? [CFTypeRef]
+                    if rangesValue != nil, rawRanges == nil { diagnostic(.invalidRange); return nil }
+                    if let rawRanges, rawRanges.count > 1 { diagnostic(.multipleSelection); return nil }
+                    var choices: [(CFTypeRef, TextSelectionTransport)] = []
+                    if let rawRange { choices.append((rawRange, .range)) }
+                    if let first = rawRanges?.first { choices.append((first, .ranges)) }
+                    for (raw, transport) in choices {
+                        guard CFGetTypeID(raw) == AXValueGetTypeID() else { failure = .invalidRange; continue }
+                        var range = CFRange()
+                        guard AXValueGetValue(raw as! AXValue, .cfRange, &range) else { failure = .invalidRange; continue }
                         if let text = access.copy(element, kAXValueAttribute) as? String {
-                            if let context = Self.context(element: element, text: text, range: range) { return context }
+                            if var context = Self.context(element: element, text: text, range: range) {
+                                context.selectionTransport = transport
+                                return context
+                            }
                             failure = .invalidRange
-                        } else {
-                            failure = .missingValue
+                        } else { failure = .missingValue }
+                    }
+                    // Some editors omit their caret range only while empty.
+                    // An actually empty, writable text control has exactly one
+                    // possible caret position. Never infer one in populated text.
+                    if editable, rawRange == nil, rawRanges?.isEmpty != false,
+                       access.copy(element, kAXValueAttribute) as? String == "",
+                       (access.copy(element, "AXEditable") as? Bool == true
+                        || access.writable(element, kAXValueAttribute)
+                        || access.writable(element, kAXSelectedTextAttribute)),
+                       access.copy(element, kAXSelectedTextMarkerRangeAttribute as String) == nil {
+                        let transport: TextSelectionTransport = access.writable(element, kAXSelectedTextRangeAttribute) ? .range : .ranges
+                        if access.writable(element, transport == .range ? kAXSelectedTextRangeAttribute : kAXSelectedTextRangesAttribute) {
+                            var context = Self.context(element: element, text: "", range: CFRange(location: 0, length: 0))!
+                            context.selectionTransport = transport
+                            diagnostic(.emptyField)
+                            return context
                         }
                     }
                 }

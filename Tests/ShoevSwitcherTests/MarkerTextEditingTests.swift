@@ -47,6 +47,27 @@ final class MarkerTextEditingTests: XCTestCase {
         XCTAssertEqual(editor.focusReads, 1)
     }
 
+    func testWebAreaUsesOnlyTheSelectedParagraphNotItsWholeValue() {
+        let editor = MarkerEditor(); editor.role = "AXWebArea"
+        XCTAssertEqual(editor.reader.read(focusedElement: editor.element)?.prefix, "превет")
+        XCTAssertEqual(editor.stringReads, 1)
+    }
+
+    func testNestedFocusedChildFindsMarkersOnNearestWebAncestor() {
+        let editor = MarkerEditor(); editor.role = "AXWebArea"
+        let nodes = (0..<5).map { AXUIElementCreateApplication(pid_t(999_950 + $0)) } + [editor.element]
+        let base = editor.access
+        var access = base
+        access.copy = { element, name in
+            guard let index = nodes.firstIndex(where: { CFEqual($0, element) }), index < nodes.count - 1 else { return base.copy(element, name) }
+            if name == kAXRoleAttribute { return kAXGroupRole as CFString }
+            if name == kAXParentAttribute { return nodes[index + 1] }
+            return nil
+        }
+        XCTAssertEqual(VerifiedCaretContextReader(access: access, diagnostic: { _ in }).read(focusedElement: nodes[0])?.prefix, "превет")
+        XCTAssertEqual(editor.stringReads, 1)
+    }
+
     func testSecureWordFocusDoesNotFallBackToAnotherField() {
         let editor = MarkerEditor(); editor.secure = true
         let reader = VerifiedCaretContextReader(access: editor.access, diagnostic: { _ in },
@@ -165,6 +186,7 @@ private final class MarkerEditor {
     var range = CFRange(location: 6, length: 0)
     var offset = 10_000
     var secure = false
+    var role = kAXTextAreaRole
     var paragraphAPI = true
     var reportedLength: Int?
     var shiftGeneratedMarkers = false
@@ -196,7 +218,7 @@ private final class MarkerEditor {
             switch name {
             case kAXFocusedUIElementAttribute: focusReads += 1; return element
             case kAXSubroleAttribute: return secure ? kAXSecureTextFieldSubrole as CFString : nil
-            case kAXRoleAttribute: return kAXTextAreaRole as CFString
+            case kAXRoleAttribute: return role as CFString
             case "AXSelectedTextMarkerRange":
                 markerReads += 1; return markers(CFRange(location: offset + range.location, length: range.length))
             case "AXStartTextMarker": return marker(offset)

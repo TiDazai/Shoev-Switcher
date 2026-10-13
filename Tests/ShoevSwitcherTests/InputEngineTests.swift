@@ -123,6 +123,21 @@ final class InputEngineTests: XCTestCase {
         XCTAssertEqual(fixture.injector.calls, 0)
     }
 
+    func testFirstWordStartsWhenEmptyEditorOmitsItsRange() {
+        let fixture = Fixture(); fixture.useNativeReader = true
+        fixture.type("ghbdtn")
+        XCTAssertTrue(fixture.key(" ", code: 49))
+        XCTAssertEqual(fixture.text, "привет ")
+    }
+
+    func testPopulatedEditorWithMissingRangeIsStillSkipped() {
+        let fixture = Fixture(); fixture.useNativeReader = true; fixture.omitAllRanges = true
+        fixture.text = "old "
+        fixture.type("ghbdtn ")
+        XCTAssertEqual(fixture.injector.calls, 0)
+        XCTAssertEqual(fixture.text, "old ghbdtn ")
+    }
+
     func testMonitorResetDiscardsStaleToken() {
         let fixture = Fixture()
         fixture.type("ghbdtn")
@@ -171,6 +186,8 @@ private final class Fixture {
     var field = AXUIElementCreateApplication(101)
     var contextAvailable = true
     var offset = 0
+    var useNativeReader = false
+    var omitAllRanges = false
     let source = FakeSource()
     let injector = FakeInjector()
     let monitor = KeyboardMonitor()
@@ -190,6 +207,24 @@ private final class Fixture {
             correctionNotifier: CorrectionNotifier(defaults: defaults),
             readContext: { [weak self] in
                 guard let self, self.contextAvailable else { return nil }
+                if self.useNativeReader {
+                    var access = AccessibilityAccess()
+                    access.copy = { [weak self] _, name in
+                        guard let self else { return nil }
+                        if name == kAXRoleAttribute { return kAXTextAreaRole as CFString }
+                        if name == kAXValueAttribute { return self.text as CFString }
+                        if name == kAXSelectedTextRangeAttribute, !self.text.isEmpty, !self.omitAllRanges {
+                            var range = CFRange(location: self.text.utf16.count, length: 0)
+                            return AXValueCreate(.cfRange, &range)
+                        }
+                        return nil
+                    }
+                    access.writable = { _, name in name == kAXValueAttribute || name == kAXSelectedTextRangeAttribute }
+                    guard let caret = VerifiedCaretContextReader(access: access, diagnostic: { _ in }).read(focusedElement: self.field),
+                          let text = caret.fullText else { return nil }
+                    return TextReplacementContext(element: self.field, text: text,
+                        range: CFRange(location: caret.prefix.utf16.count, length: caret.selectionLength), selectionTransport: caret.selectionTransport)
+                }
                 return TextReplacementContext(element: self.field, text: self.text,
                     range: CFRange(location: self.text.utf16.count, length: 0), textOffset: self.offset)
             }, frontmost: { nil })

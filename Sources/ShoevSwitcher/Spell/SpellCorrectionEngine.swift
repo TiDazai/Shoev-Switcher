@@ -2,6 +2,9 @@ import AppKit
 
 final class SpellCorrectionEngine {
     private static let protectedWords: Set<String> = ["shoev"]
+    // A frequency corpus contains common misspellings too. These exact spelling
+    // corrections are baseline behavior, not learned or personal diary rules.
+    private static let canonicalSpelling = ["пожалуста": "пожалуйста", "пожайлуста": "пожалуйста"]
     private let lexicon: WordScoring
     private let defaults: UserDefaults
     private let rules: RuleStore?
@@ -28,8 +31,12 @@ final class SpellCorrectionEngine {
               normalized.count >= defaults.integer(forKey: SpellPreferenceKey.minimumLength),
               normalized.count <= 32,
               let language = SpellLanguage.detect(in: normalized) else { return nil }
-        let originalScore = lexicon.score(for: normalized, language: language)
         let minimumScore = defaults.integer(forKey: SpellPreferenceKey.minimumScore)
+        if let canonical = Self.canonicalSpelling[normalized] {
+            guard let score = lexicon.score(for: canonical, language: language), score >= minimumScore else { return nil }
+            return Correction(original: original, replacement: restoreCase(of: original, in: canonical))
+        }
+        let originalScore = lexicon.score(for: normalized, language: language)
         if let originalScore, originalScore >= minimumScore { return nil }
 
         let candidates = editsAtDistanceOne(from: normalized, language: language)
