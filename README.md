@@ -8,9 +8,9 @@
 
 <p align="center">
   <a href="https://github.com/TiDazai/Shoev-Switcher/actions/workflows/ci.yml"><img src="https://github.com/TiDazai/Shoev-Switcher/actions/workflows/ci.yml/badge.svg" alt="macOS CI"></a>
-  <a href="https://github.com/TiDazai/Shoev-Switcher/releases"><img src="https://img.shields.io/github/v/release/TiDazai/Shoev-Switcher?include_prereleases&amp;color=d8bd7d&amp;labelColor=23272c&amp;label=release" alt="Release"></a>
+  <a href="https://github.com/TiDazai/Shoev-Switcher/releases"><img src="https://img.shields.io/github/v/release/TiDazai/Shoev-Switcher?include_prereleases&amp;color=b8c1ca&amp;labelColor=38424e&amp;label=release" alt="Release"></a>
   <img src="https://img.shields.io/badge/macOS-26%2B-303030" alt="macOS 26+">
-  <img src="https://img.shields.io/badge/Swift-native-d9ad55?labelColor=591124" alt="Native Swift">
+  <img src="https://img.shields.io/badge/Swift-native-b8c1ca?labelColor=38424e" alt="Native Swift">
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.7.1/Shoev-Switcher.dmg"><strong>Скачать для macOS 26+ · DMG</strong></a>
+  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.8.0/Shoev-Switcher.dmg"><strong>Скачать для macOS 26+ · DMG</strong></a>
   &nbsp; · &nbsp;
   <a href="CHANGELOG.md">Что нового</a>
 </p>
@@ -30,11 +30,11 @@
 
 Shoev Switcher is an offline Russian–English keyboard layout and spelling app for macOS, made by SHOEV SYSTEMS.
 
-Shoev Switcher предназначен только для **macOS 26 и новее**. Текущая версия доступна как [предрелиз 0.7.1](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.7.1). Исправление при обычном наборе в Microsoft Word проверено; совместимость других текстовых полей зависит от редактора.
+Shoev Switcher предназначен только для **macOS 26 и новее**. Текущая версия доступна как [предрелиз 0.8.0](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.8.0) с бело-платиновым оформлением. Исправление при обычном наборе в Microsoft Word было проверено в 0.7.1; совместимость других текстовых полей зависит от редактора. Работа в поле ввода Codex не подтверждена.
 
 ## Просто продолжай писать
 
-Shoev Switcher для macOS объединяет два независимых модуля в одном приложении. Главное окно оформлено в графитовой, платиновой и золотой палитре; кошка в строке меню позволяет быстро открыть его или включить и выключить модули.
+Shoev Switcher для macOS объединяет два независимых модуля в одном приложении. Белая керамика, шлифованная платина, светлая металлическая фактура и рельефная кошка — новый облик приложения. Статичная текстура не использует анимацию. В строке меню — только кошка, без подложки; через неё можно открыть окно или включить и выключить модули.
 
 | Модуль | Что делает |
 | --- | --- |
@@ -64,7 +64,7 @@ Enter, Shift+Enter и Tab проходят в приложение без пер
 
 ## Установка на Mac
 
-1. Открой [DMG для macOS 26+](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.7.1/Shoev-Switcher.dmg) и перетащи приложение в **Applications**.
+1. Открой [DMG для macOS 26+](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.8.0/Shoev-Switcher.dmg) и перетащи приложение в **Applications**.
 2. Запусти Shoev Switcher.
 3. Разреши **Мониторинг ввода** и **Универсальный доступ** в настройках macOS.
 4. Убедись, что добавлены русская и английская раскладки.
@@ -86,7 +86,7 @@ Enter, Shift+Enter и Tab проходят в приложение без пер
 - **Журнал** — события Switcher и Spell со статусами: ожидает, сохранено, отменено, удалено/изменено, не подтверждено.
 - **Дневник** — только личные правила, их источник, модуль и область; редактирование, приостановка, импорт и экспорт JSON.
 - **Самообучение** — три независимых подтверждённых повторения; удаление не считается согласием, автоматическое исправление не обучает само себя.
-- **Словарь** — весь встроенный корпус, отдельно русский и английский; поиск по началу слова и страницы по 200 записей. Личные слова отмечены золотом.
+- **Словарь** — весь встроенный корпус, отдельно русский и английский; поиск по началу слова и страницы по 200 записей. Личные слова отмечены звездой и полужирным начертанием.
 - **Автозапуск и память раскладки** — по желанию.
 
 ## Самообучение без поспешных правил

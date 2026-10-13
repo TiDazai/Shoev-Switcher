@@ -105,7 +105,8 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Shoev Switcher"
         window.minSize = NSSize(width: 960, height: 740)
-        window.appearance = NSAppearance(named: .darkAqua)
+        window.appearance = NSAppearance(named: .aqua)
+        window.backgroundColor = NSColor(Brand.background)
         window.isReleasedWhenClosed = false
         window.center()
         window.contentView = NSHostingView(rootView: ApplicationView(model: model))
@@ -125,11 +126,34 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
 }
 
 enum Brand {
-    static let gold = Color(red: 0.86, green: 0.74, blue: 0.49)
-    static let platinum = Color(red: 0.89, green: 0.90, blue: 0.91)
-    static let selection = Color(red: 0.23, green: 0.25, blue: 0.28)
-    static let background = Color(red: 0.065, green: 0.075, blue: 0.085)
-    static let panel = Color(red: 0.115, green: 0.13, blue: 0.145)
+    static let ink = Color(red: 0.16, green: 0.18, blue: 0.21)
+    static let accent = Color(red: 0.32, green: 0.35, blue: 0.39)
+    static let secondary = Color(red: 0.34, green: 0.37, blue: 0.42)
+    static let selection = Color(red: 0.24, green: 0.26, blue: 0.29)
+    static let background = Color(red: 0.94, green: 0.95, blue: 0.96)
+    static let panel = Color(red: 0.985, green: 0.987, blue: 0.99)
+    static let edge = Color(red: 0.73, green: 0.76, blue: 0.79)
+    static let warning = Color(red: 0.61, green: 0.32, blue: 0.11)
+    // Decode once, not each time the status model refreshes. No animation or drawing loop.
+    static let surfaceImage = Bundle.module.url(forResource: "PlatinumSurface", withExtension: "png")
+        .flatMap(NSImage.init(contentsOf:))
+    static let catImage = Bundle.module.url(forResource: "BrandCat", withExtension: "png")
+        .flatMap(NSImage.init(contentsOf:))
+}
+
+struct PlatinumBackground: View {
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Brand.background
+                if let image = Brand.surfaceImage {
+                    Image(nsImage: image).resizable().scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .opacity(0.72)
+                }
+            }.clipped()
+        }.allowsHitTesting(false).accessibilityHidden(true)
+    }
 }
 
 private struct ApplicationView: View {
@@ -158,11 +182,12 @@ private struct ApplicationView: View {
     @AppStorage(SpellPreferenceKey.minimumScore) private var minimumScore = 250
     @State private var exclusions = ""
     @State private var switcherExclusions = ""
+    @FocusState private var focusedPage: ApplicationPage?
 
     var body: some View {
         HStack(spacing: 0) {
             sidebar
-            Divider().overlay(Brand.gold.opacity(0.16))
+            Divider().overlay(Brand.edge.opacity(0.35))
             VStack(alignment: .leading, spacing: 22) {
                 header
                 switch model.page {
@@ -171,23 +196,23 @@ private struct ApplicationView: View {
                 case .spell: spellSettings
                 case .journal, .diary, .dictionary:
                     if let knowledge = model.knowledge { KnowledgePageView(page: model.page, knowledge: knowledge) }
-                    else { Text("Не удалось открыть личную базу. Проверь доступ к Application Support.").foregroundStyle(.orange) }
+                    else { Text("Не удалось открыть личную базу. Проверь доступ к Application Support.").foregroundStyle(Brand.warning) }
                 }
             }
             .padding(28)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .background(Brand.background)
-        .foregroundStyle(Brand.platinum)
-        .tint(Brand.gold)
-        .preferredColorScheme(.dark)
+        .background(PlatinumBackground())
+        .foregroundStyle(Brand.ink)
+        .tint(Brand.accent)
+        .preferredColorScheme(.light)
     }
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 26) {
             HStack(spacing: 12) {
                 Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 48, height: 48)
-                Text("Shoev Switcher").font(.system(size: 17, weight: .semibold, design: .rounded))
+                Text("Shoev Switcher").font(.system(size: 15, weight: .semibold, design: .rounded)).lineLimit(1)
             }
             VStack(spacing: 7) {
                 ForEach(ApplicationPage.allCases) { page in
@@ -195,29 +220,49 @@ private struct ApplicationView: View {
                         Label(page.rawValue, systemImage: page.symbol)
                             .font(.system(size: 14, weight: model.page == page ? .semibold : .regular))
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 12)
-                            .foregroundStyle(model.page == page ? Brand.gold : Color.white.opacity(0.65))
-                            .background(model.page == page ? Brand.selection : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }.buttonStyle(.plain)
+                            .foregroundStyle(model.page == page ? Color.white : Brand.secondary)
+                            .background {
+                                if model.page == page {
+                                    RoundedRectangle(cornerRadius: 12).fill(
+                                        LinearGradient(colors: [Brand.accent, Brand.selection], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                }
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(
+                                focusedPage == page ? (model.page == page ? Color.white.opacity(0.65) : Brand.accent) : Color.clear,
+                                lineWidth: 1.5))
+                    }.buttonStyle(.plain).focused($focusedPage, equals: page).focusEffectDisabled()
+                        .accessibilityAddTraits(model.page == page ? .isSelected : [])
                 }
             }
             Spacer()
             VStack(alignment: .leading, spacing: 8) {
                 Label(model.ready ? "Доступ готов" : "Нужны разрешения", systemImage: model.ready ? "checkmark.shield" : "exclamationmark.shield")
-                    .foregroundStyle(model.ready ? Brand.gold : .orange).font(.system(size: 12))
-                Text("RU / EN · Локальная обработка").font(.system(size: 11)).foregroundStyle(.secondary)
-                Text("Created by Shoev Systems").font(.system(size: 11)).foregroundStyle(.secondary)
+                    .foregroundStyle(model.ready ? Brand.accent : Brand.warning).font(.system(size: 12))
+                Text("RU / EN · Локальная обработка").font(.system(size: 11)).foregroundStyle(Brand.secondary)
+                Text("Created by Shoev Systems").font(.system(size: 11)).foregroundStyle(Brand.secondary)
                 Text("v" + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"))
-                    .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+                    .font(.system(size: 10, design: .monospaced)).foregroundStyle(Brand.secondary)
             }
-        }.padding(22).frame(width: 200).background(Brand.panel.opacity(0.6))
+        }.padding(22).frame(width: 232).background(Brand.panel.opacity(0.58))
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(model.page == .overview ? "Shoev Switcher" : model.page.rawValue)
-                .font(.system(size: 30, weight: .semibold, design: .rounded))
-            Text(subtitle).font(.system(size: 13)).foregroundStyle(.secondary)
+        HStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                if model.page == .overview {
+                    Text("RU / EN · SWITCHER + SPELL")
+                        .font(.system(size: 10, weight: .semibold)).tracking(2).foregroundStyle(Brand.accent)
+                }
+                Text(model.page == .overview ? "Shoev Switcher" : model.page.rawValue)
+                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                Text(subtitle).font(.system(size: 13)).foregroundStyle(Brand.secondary)
+            }
+            Spacer(minLength: 0)
+            if model.page == .overview, let cat = Brand.catImage {
+                Image(nsImage: cat).resizable().scaledToFit().frame(width: 82, height: 98)
+                    .accessibilityHidden(true)
+            }
         }
     }
     private var subtitle: String {
@@ -242,12 +287,12 @@ private struct ApplicationView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Label("Одна система ввода", systemImage: "keyboard").font(.system(size: 16, weight: .semibold))
                     Text("Сначала проверяется раскладка, затем орфография. Одна база слов, один обработчик клавиатуры. Модули включаются независимо.")
-                        .font(.system(size: 13)).foregroundStyle(.secondary)
+                        .font(.system(size: 13)).foregroundStyle(Brand.secondary)
                     Divider()
                     HStack {
                         Label("Текущая раскладка", systemImage: "globe")
                         Spacer()
-                        Text(model.language).foregroundStyle(Brand.gold)
+                        Text(model.language).foregroundStyle(Brand.accent)
                     }.font(.system(size: 13))
                     HStack {
                         Text("Запускать при входе в macOS")
@@ -260,31 +305,31 @@ private struct ApplicationView: View {
                     }
                 }.card()
                 Text("Пароли и защищённые поля не обрабатываются. Закрытие этого окна не останавливает приложение — кошка остаётся в строке меню.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .font(.system(size: 12)).foregroundStyle(Brand.secondary)
             }
         }
     }
     private func moduleCard(_ name: String, symbol: String, text: String, enabled: Binding<Bool>, page: ApplicationPage) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(Brand.gold)
+                Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(Brand.accent).frame(width: 32, height: 32)
                 Spacer()
                 Toggle(name + " включён", isOn: enabled).labelsHidden().toggleStyle(.switch)
             }
             Text(name).font(.system(size: 23, weight: .semibold, design: .rounded))
-            Text(text).font(.system(size: 13)).foregroundStyle(.secondary).frame(minHeight: 54, alignment: .topLeading)
+            Text(text).font(.system(size: 13)).foregroundStyle(Brand.secondary).frame(minHeight: 54, alignment: .topLeading)
             Text(!enabled.wrappedValue ? "Выключен" : !model.ready ? "Ожидает разрешений" :
                 page == .spell && model.standaloneSpellRunning ? "Пауза: отдельный Spell" : "Включён")
-                .font(.system(size: 12, weight: .medium)).foregroundStyle(enabled.wrappedValue ? Brand.gold : .secondary)
+                .font(.system(size: 12, weight: .medium)).foregroundStyle(enabled.wrappedValue ? Brand.accent : Brand.secondary)
             Button("Настроить " + name) { model.page = page }.buttonStyle(.bordered)
         }.frame(maxWidth: .infinity, alignment: .leading).card()
     }
     private var standaloneWarning: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Запущен отдельный Shoev Spell", systemImage: "exclamationmark.triangle")
-                .font(.system(size: 14, weight: .semibold)).foregroundStyle(Brand.gold)
+                .font(.system(size: 14, weight: .semibold)).foregroundStyle(Brand.accent)
             Text("Встроенный Spell временно не исправляет текст, чтобы два приложения не мешали друг другу. Отдельное приложение и его данные сохранены.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .font(.system(size: 12)).foregroundStyle(Brand.secondary)
             Button("Завершить отдельный Spell") { model.stopStandaloneSpell() }.buttonStyle(.bordered)
         }.card()
     }
@@ -304,10 +349,10 @@ private struct ApplicationView: View {
                     Stepper("Минимальная длина слова: \(minimumLength)", value: $minimumLength, in: 3...8)
                     Stepper("Порог уверенности: \(minimumScore)", value: $minimumScore, in: 250...800, step: 25)
                     Text("Повышай порог, если появляются ложные исправления. Enter и Tab всегда остаются действиями редактора.")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .font(.system(size: 12)).foregroundStyle(Brand.secondary)
                 }.card().disabled(!spellEnabled)
                 exclusionsCard("Spell", text: $exclusions, key: SpellPreferenceKey.excludedApplications)
-                Text(model.diagnostic).font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(model.diagnostic).font(.system(size: 12)).foregroundStyle(Brand.secondary)
             }
         }.onAppear {
             exclusions = (UserDefaults.standard.stringArray(forKey: SpellPreferenceKey.excludedApplications) ?? []).joined(separator: "\n")
@@ -331,7 +376,7 @@ private struct ApplicationView: View {
                         }
                     }.disabled(!manualConversion)
                     Text("Enter и Tab проходят без исправлений. Двойной Shift конвертирует выделение, текущее или последнее слово.")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .font(.system(size: 12)).foregroundStyle(Brand.secondary)
                 }.card().disabled(!switcherEnabled)
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Интерфейс и поведение").font(.system(size: 16, weight: .semibold))
@@ -346,14 +391,14 @@ private struct ApplicationView: View {
                     Toggle("Сохранять исправления Switcher в журнале", isOn: $switcherJournal).disabled(!switcherEnabled)
                     Toggle("Сохранять все завершённые слова", isOn: $fullDiary).disabled(!switcherEnabled || !switcherJournal)
                     Text("Полная история дополнительно сохраняет набранные слова. По умолчанию выключена. Дневник содержит только личные правила.")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .font(.system(size: 12)).foregroundStyle(Brand.secondary)
                 }.card()
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Источники ввода").font(.system(size: 16, weight: .semibold))
                     sourcePicker("English", language: .english, selection: $englishInputSource)
                     sourcePicker("Русский", language: .russian, selection: $russianInputSource)
                     Text("Доступны только включённые в macOS русские и английские раскладки.")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .font(.system(size: 12)).foregroundStyle(Brand.secondary)
                 }.card()
                 exclusionsCard("Switcher", text: $switcherExclusions, key: PreferenceKey.excludedApplications)
                 if !model.ready {
@@ -379,7 +424,7 @@ private struct ApplicationView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Исключённые приложения " + module).font(.system(size: 16, weight: .semibold))
             Text("Bundle ID, по одному в строке. Исключения другого модуля не изменяются.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .font(.system(size: 12)).foregroundStyle(Brand.secondary)
             TextEditor(text: text).font(.system(size: 12, design: .monospaced)).frame(height: 105)
                 .padding(8).background(Brand.background).clipShape(RoundedRectangle(cornerRadius: 8))
                 .accessibilityLabel("Исключённые приложения " + module)
@@ -395,8 +440,11 @@ private struct ApplicationView: View {
 
 extension View {
     func card() -> some View {
-        self.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(Brand.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Brand.gold.opacity(0.12), lineWidth: 1))
+        self.frame(maxWidth: .infinity, alignment: .leading).padding(20)
+            .background(LinearGradient(colors: [.white, Brand.panel], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(
+                LinearGradient(colors: [.white, Brand.edge.opacity(0.5)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+            .shadow(color: .black.opacity(0.045), radius: 8, x: 0, y: 4)
     }
 }
