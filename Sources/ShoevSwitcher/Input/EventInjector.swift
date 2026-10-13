@@ -33,6 +33,7 @@ final class EventInjector: TextReplacing {
     private let readContext: () -> TextReplacementContext?
     private let secureInput: () -> Bool
     private let pasteOverride: ((String, TextReplacementContext, String) -> Bool)?
+    private let normalizesCaseAfterDelimiter: (AXUIElement) -> Bool
     private let logger = Logger(subsystem: "com.shoev.switcher", category: "replacement")
     private var generation = 0
     func cancelPending() { generation &+= 1 }
@@ -40,11 +41,17 @@ final class EventInjector: TextReplacing {
     init(access: AccessibilityAccess = AccessibilityAccess(),
          readContext: @escaping () -> TextReplacementContext? = { TextReplacementContextReader().read() },
          secureInput: @escaping () -> Bool = { IsSecureEventInputEnabled() },
-         pasteOverride: ((String, TextReplacementContext, String) -> Bool)? = nil) {
+        pasteOverride: ((String, TextReplacementContext, String) -> Bool)? = nil,
+        normalizesCaseAfterDelimiter: @escaping (AXUIElement) -> Bool = { element in
+            var pid: pid_t = 0
+            return AXUIElementGetPid(element, &pid) == .success
+                && NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.microsoft.Word"
+        }) {
         self.access = access
         self.readContext = readContext
         self.secureInput = secureInput
         self.pasteOverride = pasteOverride
+        self.normalizesCaseAfterDelimiter = normalizesCaseAfterDelimiter
     }
 
     @discardableResult
@@ -55,19 +62,18 @@ final class EventInjector: TextReplacing {
     func replaceAfterDelimiter(original: String, with replacement: String, trailingEvent: CGEvent,
                                context: TextReplacementContext, completion: @escaping () -> Void) -> Bool {
         guard let delimiter = Self.inlineDelimiter(trailingEvent), context.range.length == 0, !secureInput() else { return false }
-        let postText = (context.text as NSString).replacingCharacters(
-            in: NSRange(location: context.range.location, length: 0), with: delimiter)
+        let mayNormalizeCase = normalizesCaseAfterDelimiter(context.element)
         var attempts = 0
         let scheduledGeneration = generation
         func attempt() {
             attempts += 1
             guard self.generation == scheduledGeneration, !self.secureInput(),
                   let now = self.readContext(), now.sameRegion(as: context) else { return }
-            if now.text == postText, now.range.location == context.range.location + delimiter.utf16.count,
-               now.range.length == 0 {
+            if let actual = Self.acknowledgedOriginal(context: context, after: now, original: original,
+                delimiter: delimiter, allowingCaseNormalization: mayNormalizeCase) {
                 // The physical delimiter already belongs to the editor. Never
                 // select it: some text controls trim trailing space on AX/paste.
-                _ = self.perform(original: original, with: replacement,
+                _ = self.perform(original: actual, with: replacement,
                                  trailingEvent: nil, context: now,
                                  preservingDelimiter: delimiter, completion: completion)
             } else if now.matches(context), attempts < 8 {
@@ -76,6 +82,24 @@ final class EventInjector: TextReplacing {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.01, execute: attempt)
         return false
+    }
+
+    /// Word can capitalize text as it handles the *physical* space. Accept only
+    /// a same-length case-only normalization, never a native rewrite or further
+    /// typing. The edit uses the fresh text and leaves all surrounding text intact.
+    static func acknowledgedOriginal(context: TextReplacementContext, after: TextReplacementContext,
+                                     original: String, delimiter: String, allowingCaseNormalization: Bool) -> String? {
+        guard context.sameRegion(as: after), after.range.length == 0,
+              after.range.location == context.range.location + delimiter.utf16.count else { return nil }
+        let expected = (context.text as NSString).replacingCharacters(
+            in: NSRange(location: context.range.location, length: 0), with: delimiter)
+        if after.text == expected { return original }
+        guard allowingCaseNormalization, after.text.utf16.count == expected.utf16.count,
+              after.text.lowercased(with: Locale(identifier: "en_US_POSIX")) == expected.lowercased(with: Locale(identifier: "en_US_POSIX")),
+              context.range.location >= original.utf16.count else { return nil }
+        let actual = (after.text as NSString).substring(with: NSRange(location: context.range.location - original.utf16.count, length: original.utf16.count))
+        guard actual.lowercased(with: Locale(identifier: "en_US_POSIX")) == original.lowercased(with: Locale(identifier: "en_US_POSIX")) else { return nil }
+        return actual
     }
 
     func replaceConfirmed(original: String, with replacement: String, preservingDelimiter: String,

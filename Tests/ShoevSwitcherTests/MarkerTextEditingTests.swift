@@ -111,6 +111,34 @@ final class MarkerTextEditingTests: XCTestCase {
         XCTAssertFalse(completed); XCTAssertTrue(editor.inserted.isEmpty)
     }
 
+    func testNativeWordCapitalizationDoesNotCancelSpellingCorrection() throws {
+        let editor = MarkerEditor(); let injector = editor.injector()
+        let done = expectation(description: "native capitalization is preserved")
+        XCTAssertFalse(injector.replaceAfterDelimiter(original: "превет", with: "Привет",
+            trailingEvent: editor.space(), context: try XCTUnwrap(editor.context), completion: { done.fulfill() }))
+        editor.insertPhysical(" "); editor.text = "Превет "
+        wait(for: [done], timeout: 2)
+        XCTAssertEqual(editor.text, "Привет "); XCTAssertEqual(editor.replaced, ["Превет"])
+        XCTAssertEqual(editor.range.location, editor.text.utf16.count)
+    }
+
+    func testNativeWordRewriteAndFollowingInputAreNotCaseNormalization() throws {
+        let editor = MarkerEditor(); let before = try XCTUnwrap(editor.context)
+        editor.insertPhysical(" "); editor.text = "Привет "
+        XCTAssertNil(EventInjector.acknowledgedOriginal(context: before, after: try XCTUnwrap(editor.context),
+            original: "превет", delimiter: " ", allowingCaseNormalization: true))
+        editor.text = "Превет "; editor.insertPhysical("а")
+        XCTAssertNil(EventInjector.acknowledgedOriginal(context: before, after: try XCTUnwrap(editor.context),
+            original: "превет", delimiter: " ", allowingCaseNormalization: true))
+    }
+
+    func testCaseNormalizationIsNotEnabledForOtherEditors() throws {
+        let editor = MarkerEditor(); let before = try XCTUnwrap(editor.context)
+        editor.insertPhysical(" "); editor.text = "Превет "
+        XCTAssertNil(EventInjector.acknowledgedOriginal(context: before, after: try XCTUnwrap(editor.context),
+            original: "превет", delimiter: " ", allowingCaseNormalization: false))
+    }
+
     func testReadOnlyMarkerSelectionNeverPastes() throws {
         let editor = MarkerEditor(); editor.selectionWritable = false
         XCTAssertFalse(editor.injector().replace(original: "превет", with: "привет", context: try XCTUnwrap(editor.context)))
@@ -211,7 +239,7 @@ private final class MarkerEditor {
             pasteOverride: { [unowned self] value, selected, expected in
                 XCTAssertEqual(context?.matches(selected), true); pastes += 1; apply(value)
                 XCTAssertEqual(text, expected); return true
-            })
+            }, normalizesCaseAfterDelimiter: { _ in true })
     }
     func apply(_ value: String) {
         let native = NSRange(location: range.location, length: range.length)
