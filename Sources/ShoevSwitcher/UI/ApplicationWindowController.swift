@@ -99,8 +99,15 @@ final class ApplicationModel: ObservableObject {
 
 final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
     let model: ApplicationModel
-    init(model: ApplicationModel) {
+    private let setActivationPolicy: (NSApplication.ActivationPolicy) -> Void
+    private let activateApplication: () -> Void
+
+    init(model: ApplicationModel,
+         setActivationPolicy: @escaping (NSApplication.ActivationPolicy) -> Void = { _ = NSApp.setActivationPolicy($0) },
+         activateApplication: @escaping () -> Void = { NSApp.activate(ignoringOtherApps: true) }) {
         self.model = model
+        self.setActivationPolicy = setActivationPolicy
+        self.activateApplication = activateApplication
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 780),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Shoev Switcher"
@@ -118,11 +125,17 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
         model.page = page
         model.startRefresh()
         if [.journal, .diary, .dictionary].contains(page) { model.knowledge?.refresh(includeJournal: page == .journal) }
-        NSApp.activate(ignoringOtherApps: true)
+        // Restore Dock/menu-bar presence before bringing an accessory app forward.
+        setActivationPolicy(.regular)
         showWindow(nil)
+        activateApplication()
         window?.makeKeyAndOrderFront(nil)
     }
-    func windowWillClose(_ notification: Notification) { model.stopRefresh() }
+    func windowWillClose(_ notification: Notification) {
+        model.stopRefresh()
+        // Keep the status item and input engines alive, without a Dock icon.
+        setActivationPolicy(.accessory)
+    }
 }
 
 enum Brand {

@@ -13,12 +13,36 @@ final class ApplicationInterfaceTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = ApplicationModel(monitor: KeyboardMonitor(), sourceManager: InputSourceManager(defaults: defaults))
-        let controller = ApplicationWindowController(model: model)
+        let controller = ApplicationWindowController(model: model, setActivationPolicy: { _ in })
         XCTAssertEqual(controller.window?.title, "Shoev Switcher")
         XCTAssertEqual(controller.window?.minSize.width, 960)
         XCTAssertEqual(controller.window?.appearance?.name, .aqua)
         XCTAssertNotNil(controller.window?.contentView)
         controller.window?.close()
+    }
+    func testClosingAndReopeningWindowUpdatesDockPresence() {
+        _ = NSApplication.shared
+        let suite = "WindowPresenceTests-\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = ApplicationModel(monitor: KeyboardMonitor(), sourceManager: InputSourceManager(defaults: defaults))
+        var events: [String] = []
+        let controller = ApplicationWindowController(model: model,
+            setActivationPolicy: { events.append($0 == .regular ? "regular" : "accessory") },
+            activateApplication: { events.append("activate") })
+        for page in [ApplicationPage.overview, .switcher, .spell, .journal, .diary, .dictionary] {
+            events.removeAll()
+            controller.open(page)
+            XCTAssertEqual(model.page, page)
+            XCTAssertTrue(controller.window?.isVisible == true)
+            XCTAssertEqual(events, ["regular", "activate"])
+            controller.window?.close()
+            XCTAssertEqual(events, ["regular", "activate", "accessory"])
+            XCTAssertFalse(controller.window?.isVisible == true)
+        }
+    }
+    func testClosingLastWindowDoesNotTerminateApplication() {
+        XCTAssertFalse(AppDelegate().applicationShouldTerminateAfterLastWindowClosed(NSApplication.shared))
     }
     func testMetalAssetsAreBundledAndCached() {
         XCTAssertNotNil(Brand.surfaceImage)
