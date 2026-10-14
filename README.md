@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.8.1/Shoev-Switcher.dmg"><strong>Скачать 0.8.1 для macOS 26+ · DMG</strong></a>
+  <a href="https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.8.2/Shoev-Switcher.dmg"><strong>Скачать 0.8.2 для macOS 26+ · DMG</strong></a>
   &nbsp; · &nbsp;
   <a href="CHANGELOG.md">Что нового</a>
 </p>
@@ -30,9 +30,15 @@
 
 Shoev Switcher is an offline Russian–English keyboard layout and spelling app for macOS, made by SHOEV SYSTEMS.
 
-Shoev Switcher предназначен только для **macOS 26 и новее**. Текущая версия — [предрелиз 0.8.1](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.8.1). Исправление при обычном наборе в Microsoft Word было проверено в 0.7.1; совместимость других текстовых полей зависит от редактора. Работа в поле ввода Codex не подтверждена.
+Shoev Switcher предназначен только для **macOS 26 и новее**. Текущая версия — [предрелиз 0.8.2](https://github.com/TiDazai/Shoev-Switcher/releases/tag/v0.8.2). Исправление при обычном наборе в Microsoft Word было проверено в 0.7.1; совместимость других текстовых полей зависит от редактора. Работа в поле ввода Codex не подтверждена.
 
-## Что нового в 0.8.1
+## Что нового в 0.8.2
+
+При закрытии главного окна кошка исчезает из Dock, но остаётся в строке меню. Switcher и Spell продолжают работать. Открытие окна возвращает иконку в Dock; команда «Завершить Shoev Switcher» полностью останавливает приложение. Настройки и личные данные сохраняются.
+
+[Описание выпуска 0.8.2](docs/releases/0.8.2.md).
+
+## Дизайн и технологии
 
 Обновлённый дизайн: светлая платиново-серебристая тема с золотыми акцентами. Платиновая кошка Shoev Systems — без стрелок и квадратной подложки. Убраны информационные подсказки и лишние подписи.
 
@@ -79,7 +85,7 @@ Enter, Shift+Enter и Tab проходят в приложение без пер
 
 ## Установка на Mac
 
-1. Скачай [DMG версии 0.8.1 для macOS 26+](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.8.1/Shoev-Switcher.dmg), открой его и перетащи приложение в **Applications**.
+1. Скачай [DMG версии 0.8.2 для macOS 26+](https://github.com/TiDazai/Shoev-Switcher/releases/download/v0.8.2/Shoev-Switcher.dmg), открой его и перетащи приложение в **Applications**.
 2. Запусти Shoev Switcher.
 3. Разреши **Мониторинг ввода** и **Универсальный доступ** в настройках macOS.
 4. Убедись, что добавлены русская и английская раскладки.
