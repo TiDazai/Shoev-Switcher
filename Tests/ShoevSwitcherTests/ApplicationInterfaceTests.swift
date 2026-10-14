@@ -14,7 +14,8 @@ final class ApplicationInterfaceTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = ApplicationModel(monitor: KeyboardMonitor(), sourceManager: InputSourceManager(defaults: defaults))
         let controller = ApplicationWindowController(model: model, setActivationPolicy: { _ in })
-        XCTAssertEqual(controller.window?.title, "Shoev Switcher")
+        XCTAssertEqual(Brand.productName, "SHOEV Switcher")
+        XCTAssertEqual(controller.window?.title, "SHOEV Switcher")
         XCTAssertEqual(controller.window?.minSize.width, 960)
         XCTAssertEqual(controller.window?.appearance?.name, .aqua)
         XCTAssertNotNil(controller.window?.contentView)
@@ -43,6 +44,15 @@ final class ApplicationInterfaceTests: XCTestCase {
     }
     func testClosingLastWindowDoesNotTerminateApplication() {
         XCTAssertFalse(AppDelegate().applicationShouldTerminateAfterLastWindowClosed(NSApplication.shared))
+    }
+    func testBundleDisplayNameChangesWithoutChangingApplicationIdentity() throws {
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let data = try Data(contentsOf: repository.appendingPathComponent("Resources/Info.plist"))
+        let plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        XCTAssertEqual(plist["CFBundleDisplayName"] as? String, Brand.productName)
+        XCTAssertEqual(plist["CFBundleName"] as? String, Brand.productName)
+        XCTAssertEqual(plist["CFBundleIdentifier"] as? String, "com.shoev.switcher")
     }
     func testMetalAssetsAreBundledAndCached() {
         XCTAssertNotNil(Brand.surfaceImage)

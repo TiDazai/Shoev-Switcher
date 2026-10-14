@@ -1,4 +1,4 @@
-# Архитектура Shoev Switcher
+# Архитектура SHOEV Switcher
 
 ## Цели
 

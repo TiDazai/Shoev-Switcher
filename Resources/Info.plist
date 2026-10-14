@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>ru</string>
     <key>CFBundleDisplayName</key>
-    <string>Shoev Switcher</string>
+    <string>SHOEV Switcher</string>
 	<key>CFBundleExecutable</key>
 	<string>ShoevSwitcher</string>
 	<key>CFBundleIconFile</key>
@@ -15,7 +15,7 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Shoev Switcher</string>
+    <string>SHOEV Switcher</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

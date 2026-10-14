@@ -128,15 +128,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func configureMainMenu() {
         let main = NSMenu()
         let applicationItem = NSMenuItem()
-        applicationItem.title = "Shoev Switcher"
+        applicationItem.title = Brand.productName
         let application = NSMenu()
-        application.addItem(withTitle: "О Shoev Switcher", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        application.addItem(withTitle: "О \(Brand.productName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         application.addItem(.separator())
         let settings = application.addItem(withTitle: "Настройки…", action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
-        application.addItem(withTitle: "Скрыть Shoev Switcher", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        application.addItem(withTitle: "Скрыть \(Brand.productName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         application.addItem(.separator())
-        application.addItem(withTitle: "Завершить Shoev Switcher", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        application.addItem(withTitle: "Завершить \(Brand.productName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         applicationItem.submenu = application
         main.addItem(applicationItem)
         let editItem = NSMenuItem()

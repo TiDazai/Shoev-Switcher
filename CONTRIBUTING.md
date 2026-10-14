@@ -5,8 +5,8 @@
 ```bash
 swift test
 ./scripts/build-app.sh
-codesign --verify --deep --strict "dist/Shoev Switcher.app"
-lipo -info "dist/Shoev Switcher.app/Contents/MacOS/ShoevSwitcher"
+codesign --verify --deep --strict "dist/SHOEV Switcher.app"
+lipo -info "dist/SHOEV Switcher.app/Contents/MacOS/ShoevSwitcher"
 ```
 
 Изменения алгоритма распознавания должны сопровождаться тестами как успешных исправлений, так и ложноположительных случаев. Код обработчика Event Tap не должен выполнять сетевые операции, синхронную запись на диск или продолжительные вычисления.

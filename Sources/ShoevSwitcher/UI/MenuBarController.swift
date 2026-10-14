@@ -55,8 +55,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let enabled = defaults.bool(forKey: PreferenceKey.enabled) || defaults.bool(forKey: SpellPreferenceKey.enabled)
         statusItem.button?.alphaValue = enabled ? 1 : 0.45
         statusItem.button?.toolTip = monitor.hasRequiredPermissions
-            ? "Shoev Switcher"
-            : "Shoev Switcher: — нужны системные разрешения"
+            ? Brand.productName
+            : "\(Brand.productName): — нужны системные разрешения"
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -70,10 +70,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             image?.isTemplate = false
             button.contentTintColor = nil
             image?.size = NSSize(width: 18, height: 18)
-            image?.accessibilityDescription = "Shoev Switcher"
+            image?.accessibilityDescription = Brand.productName
             button.image = image ?? NSImage(
                 systemSymbolName: "arrow.left.arrow.right",
-                accessibilityDescription: "Shoev Switcher"
+                accessibilityDescription: Brand.productName
             )
             button.imagePosition = .imageOnly
         }
@@ -82,7 +82,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func configureMenu() {
         menu.delegate = self
-        menu.addItem(makeItem("Открыть Shoev Switcher…", #selector(showApplication)))
+        menu.addItem(makeItem("Открыть \(Brand.productName)…", #selector(showApplication)))
         menu.addItem(.separator())
         menu.addItem(enabledItem)
         menu.addItem(spellItem)
@@ -97,7 +97,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(permissionItem)
         menu.addItem(makeItem("Настройки…", #selector(showSettings), keyEquivalent: ","))
         menu.addItem(.separator())
-        menu.addItem(makeItem("Завершить Shoev Switcher", #selector(quit), keyEquivalent: "q"))
+        menu.addItem(makeItem("Завершить \(Brand.productName)", #selector(quit), keyEquivalent: "q"))
     }
 
     private func makeItem(_ title: String, _ action: Selector, keyEquivalent: String = "") -> NSMenuItem {

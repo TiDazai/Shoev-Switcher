@@ -110,7 +110,7 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
         self.activateApplication = activateApplication
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 780),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "Shoev Switcher"
+        window.title = Brand.productName
         window.minSize = NSSize(width: 960, height: 740)
         window.appearance = NSAppearance(named: .aqua)
         window.backgroundColor = NSColor(Brand.background)
@@ -139,6 +139,7 @@ final class ApplicationWindowController: NSWindowController, NSWindowDelegate {
 }
 
 enum Brand {
+    static let productName = "SHOEV Switcher"
     static let ink = Color(red: 0.16, green: 0.18, blue: 0.21)
     static let accent = Color(red: 0.43, green: 0.32, blue: 0.15)
     static let gold = Color(red: 0.76, green: 0.64, blue: 0.40)
@@ -243,7 +244,7 @@ private struct ApplicationView: View {
         VStack(alignment: .leading, spacing: 26) {
             HStack(spacing: 12) {
                 MetalCatLogo(width: 48, height: 48)
-                Text("Shoev Switcher").font(.system(size: 15, weight: .semibold)).lineLimit(1)
+                Text(Brand.productName).font(.system(size: 15, weight: .semibold)).lineLimit(1)
             }
             VStack(spacing: 7) {
                 ForEach(ApplicationPage.allCases) { page in
@@ -274,7 +275,7 @@ private struct ApplicationView: View {
 
     private var header: some View {
         HStack(spacing: 20) {
-            Text(model.page == .overview ? "Shoev Switcher" : model.page.rawValue)
+            Text(model.page == .overview ? Brand.productName : model.page.rawValue)
                 .font(.system(size: 30, weight: .medium)).tracking(-0.5)
             Spacer(minLength: 0)
             if model.page == .overview {

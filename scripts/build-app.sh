@@ -4,7 +4,7 @@ set -euo pipefail
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 build_root="$project_dir/.build/distribution"
 dist_dir="$project_dir/dist"
-app_bundle="$dist_dir/Shoev Switcher.app"
+app_bundle="$dist_dir/SHOEV Switcher.app"
 arm_scratch="$build_root/arm64"
 x86_scratch="$build_root/x86_64"
 minimum_macos="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$project_dir/Resources/Info.plist")"
@@ -27,7 +27,7 @@ swift build \
   --scratch-path "$x86_scratch"
 x86_bin="$(swift build --package-path "$project_dir" --configuration release --triple "x86_64-apple-macosx$minimum_macos" --scratch-path "$x86_scratch" --show-bin-path)"
 
-if [[ "$app_bundle" != "$dist_dir/Shoev Switcher.app" ]]; then
+if [[ "$app_bundle" != "$dist_dir/SHOEV Switcher.app" ]]; then
   echo "Unexpected app bundle path" >&2
   exit 1
 fi
